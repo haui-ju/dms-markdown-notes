@@ -4,9 +4,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+### Añadido
+
+- Nota de ejemplo en `examples/Ejemplo completo.md` con todas las funciones: formato, listas, tareas, cita, separador, enlaces, etiquetas, tablas con layout, código e imagen.
+
 ### Cambiado
 
 - El buscador de notas se abre y se cierra con **Ctrl+F** (antes Ctrl+Shift+F). Esc también lo cierra.
+
+### Corregido
+
+- Una nota con imágenes ya no pierde las casillas de tareas, las citas, los separadores ni los bloques de código dibujados.
+- El código en línea que va detrás de otro que empieza o termina con acento grave ya no gana espacios en cada guardado.
+- Un `[[enlace]]` que Qt parte en dos líneas al guardar ya no queda escrito como `\[[enlace]]`.
+- Un `[[...]]` dentro de código en línea ya no se comporta como enlace.
 
 ## [0.7.0] - 2026-09-29
 

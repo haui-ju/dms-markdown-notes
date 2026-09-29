@@ -28,6 +28,12 @@ dms ipc call markdownNotes openNote ~/proyecto/README.md    # o una ruta absolut
 dms ipc call markdownNotes search "#pendiente"              # abre el buscador con ese texto o etiqueta
 ```
 
+Para ver todo lo que hace, abre la nota de ejemplo, que enseña cada función en uso:
+
+```bash
+dms ipc call markdownNotes openNote ~/.config/DankMaterialShell/plugins/markdownNotes/examples/"Ejemplo completo.md"
+```
+
 ## Interfaz
 
 Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (buscar en las notas, ver Markdown, reparar barras en código si hace falta, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
