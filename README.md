@@ -44,7 +44,7 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 
 Escribe `/` al inicio de una línea (o después de un espacio) para abrir el menú de bloques, como en Notion. Lo que escribas después filtra la lista sin importar tildes (`/tab`, `/titulo`, `/tareas`). Flechas para moverte, Enter o Tab para aplicar, Esc para cerrar.
 
-Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separador, Bloque de código y **Tabla**.
+Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separador, Bloque de código, **Tabla** e **Imagen**.
 
 ## Tablas
 
@@ -70,6 +70,15 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Retroceso en un bloque vacío lo convierte en texto normal. Retroceso en la línea justo debajo de un bloque vuelve al final del bloque sin romperlo.
 - Dentro del bloque no se aplican atajos Markdown, formato ni el menú `/`: el texto se guarda tal cual.
 
+## Imágenes
+
+- Pega una imagen con **Ctrl+V** (una captura, una imagen copiada de la web o del gestor de archivos) o escribe `/imagen` para elegir un archivo.
+- La imagen se guarda en una carpeta junto a la nota con el mismo nombre: `~/Notes/mi-nota.md` guarda sus imágenes en `~/Notes/mi-nota/`. En el Markdown queda un enlace relativo: `![](mi-nota/imagen-20260929-101500.png)`.
+- Se ven dentro de la nota, ajustadas al ancho del panel (máximo 480 px de alto). Si el archivo no existe se muestra un aviso con la ruta.
+- **Clic en una imagen**: abre un visor flotante con botones para abrirla con otra aplicación, abrir su carpeta, eliminarla (dos clics: la quita de la nota y manda el archivo a la papelera) o cerrar.
+- Al renombrar la nota, guardarla con otro nombre o borrarla, la carpeta de imágenes la acompaña y los enlaces se actualizan.
+- También se muestran imágenes con ruta absoluta o URL (`https://...`), pero no se copian a la carpeta.
+
 ## Pegar
 
 - Desde una web o un documento se conservan los títulos, listas, negritas, enlaces, tablas y código, pero no las fuentes, colores ni tamaños.
@@ -78,6 +87,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Código copiado de un editor o terminal (texto monoespaciado) se pega como bloque de código.
 - Dentro de un bloque de código se pega siempre texto plano y queda dentro del bloque.
 - Dentro de una celda el texto se pega en una sola línea, para no romper la tabla.
+- Una imagen, o rutas de archivos de imagen copiadas del gestor de archivos, se guardan en la carpeta de la nota (ver [Imágenes](#imágenes)).
 - **Ctrl+Shift+V** pega como texto plano, sin formato.
 
 ## Atajos
@@ -106,6 +116,8 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - El formato dentro del encabezado de una tabla (negrita, código...) no se guarda: Qt lo descarta al escribir el Markdown.
 - Las tablas no admiten celdas combinadas ni varias líneas por celda, y la alineación de columnas (`:---:`) se pierde.
 - El alto se ajusta para toda la tabla, no fila a fila: Qt ignora la altura de las filas.
+- Las imágenes no se pueden redimensionar ni poner dentro de tablas o bloques de código. El texto alternativo (`![texto](...)`) se conserva pero no se muestra.
+- Pegar una imagen requiere el historial del portapapeles de DMS (`dms clipboard`).
 - No hay bloques arrastrables.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.

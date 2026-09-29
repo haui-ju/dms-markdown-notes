@@ -165,15 +165,15 @@ function _endsBlock(line) {
     return Md.isStructural(line) && !Md.parseLine(line).list && !/^(#{1,6}\s|>)/.test(line);
 }
 
-function splice(lines, idx, insertAt, frag) {
-    if (frag.indexOf("\n") < 0)
+function splice(lines, idx, insertAt, frag, asBlock) {
+    if (frag.indexOf("\n") < 0 && !asBlock)
         return insertInline(lines, idx, insertAt, frag);
     const line = lines[idx].replace(Md.MARKER, "");
     const head = line.substring(0, insertAt);
     const tail = line.substring(insertAt);
     const body = frag.split("\n");
     const prefix = blockPrefix(head).replace(/^#{1,6}\s+/, "");
-    const closed = _endsBlock(body[body.length - 1]);
+    const closed = !!asBlock || _endsBlock(body[body.length - 1]);
     if (!closed)
         body[body.length - 1] += Md.MARKER;
     const out = _isEmptyHead(head) ? [""] : [head, ""];

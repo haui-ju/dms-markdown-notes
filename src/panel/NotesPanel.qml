@@ -1,7 +1,9 @@
 import QtQuick
 import Quickshell
 import qs.Common
+import qs.Services
 import "../store"
+import "../editor/logic/images.js" as Images
 
 Item {
     id: root
@@ -81,6 +83,25 @@ Item {
         focusEditor();
     }
 
+    function retargetAssets(from, to) {
+        const a = store.assetsFolder(from).split("/").pop();
+        const b = store.assetsFolder(to).split("/").pop();
+        if (a === b)
+            return;
+        if (!editor.retargetImages(Images.encodePath(a) + "/", Images.encodePath(b) + "/"))
+            editor.retargetImages(a + "/", b + "/");
+    }
+
+    function removeImage(pos, path) {
+        editor.removeImageAt(pos);
+        const folder = store.assetsFolder(store.currentPath) + "/";
+        if (path.indexOf(folder) !== 0)
+            return;
+        const src = Images.encodePath(store.assetsFolder(store.currentPath).split("/").pop() + "/" + path.substring(folder.length));
+        if (editor.markdown().indexOf("](" + src) < 0)
+            Quickshell.execDetached(["gio", "trash", "--", path]);
+    }
+
     function runMenuAction(action) {
         if (action === "delete" && !confirmDelete) {
             confirmDelete = true;
@@ -104,9 +125,55 @@ Item {
         }
     }
 
+    Binding {
+        target: root.editor
+        property: "imageBaseDir"
+        value: store.currentPath.substring(0, store.currentPath.lastIndexOf("/"))
+    }
+
+    Connections {
+        target: root.editor
+
+        function onImagePasteRequested() {
+            assets.pasteClipboard(store.currentPath);
+        }
+
+        function onImageFilesPasted(paths) {
+            assets.importFiles(store.currentPath, paths);
+        }
+
+        function onImageRequested() {
+            dialogs.pickImage();
+        }
+
+        function onImageActivated(pos, url, src, alt) {
+            let name = src.split("/").pop();
+            try {
+                name = decodeURIComponent(name);
+            } catch (e) {}
+            imageViewer.show(pos, url, alt || name, true);
+        }
+    }
+
+    NoteAssets {
+        id: assets
+        onImported: sources => {
+            root.editor.insertImages(sources);
+            root.focusEditor();
+        }
+        onFailed: message => ToastService.showWarning(message)
+    }
+
+    ImageViewerModal {
+        id: imageViewer
+        onRemoveRequested: (pos, path) => root.removeImage(pos, path)
+        onDialogClosed: root.focusEditor()
+    }
+
     NotesStore {
         id: store
         notesDir: root.pluginData.notesDir || "~/Notes"
+        onMoved: (from, to) => root.retargetAssets(from, to)
         onNoteLoaded: content => {
             root.editor.load(content);
             root.closePopups();
@@ -251,8 +318,12 @@ Item {
             root.focusEditor();
         }
         onFileSaved: path => {
-            store.saveAs(path, root.editor.markdown());
+            const target = /\.md$/i.test(path) ? path : path + ".md";
+            if (store.currentPath)
+                root.retargetAssets(store.currentPath, target);
+            store.saveAs(target, root.editor.markdown());
             root.focusEditor();
         }
+        onImagePicked: path => assets.importFiles(store.currentPath, [path])
     }
 }

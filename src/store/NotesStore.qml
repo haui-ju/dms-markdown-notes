@@ -26,10 +26,15 @@ Item {
 
     signal noteLoaded(string content)
     signal externalChange(string content)
+    signal moved(string from, string to)
 
     readonly property var autoNamePattern: /^nota-\d{4}-\d{2}-\d{2}-\d{6}(-\d+)?\.md$/
 
     visible: false
+
+    function assetsFolder(path) {
+        return path.replace(/\.[^.\/]+$/, "");
+    }
 
     function titleOf(path) {
         return path.split("/").pop().replace(/\.md$/i, "");
@@ -115,7 +120,7 @@ Item {
         const path = currentPath;
         if (!path)
             return;
-        Quickshell.execDetached(["gio", "trash", "--", path]);
+        Quickshell.execDetached(["sh", "-c", 'gio trash -- "$1"; [ -d "$2" ] && gio trash -- "$2"', "sh", path, assetsFolder(path)]);
         closeTab(currentIndex);
     }
 
@@ -145,7 +150,11 @@ Item {
         next[currentIndex] = path;
         tabs = next;
         saveSession();
-        if (old && autoNamePattern.test(old.split("/").pop()))
+        if (!old || old === path)
+            return;
+        const temporary = autoNamePattern.test(old.split("/").pop());
+        Quickshell.execDetached(["sh", "-c", '[ -d "$1" ] && [ ! -e "$2" ] && if [ "$3" = 1 ]; then mv -n -- "$1" "$2"; else cp -r -- "$1" "$2"; fi', "sh", assetsFolder(old), assetsFolder(path), temporary ? "1" : "0"]);
+        if (temporary)
             Quickshell.execDetached(["rm", "-f", "--", old]);
     }
 
@@ -161,9 +170,11 @@ Item {
     function _moveCurrent(target, uniquify) {
         if (target === currentPath)
             return;
+        const moveAssets = 's="${1%.*}"; d="${t%.*}"; [ -d "$s" ] && [ ! -e "$d" ] && mv -n -- "$s" "$d"; printf %s "$t"';
+        renameProc.source = currentPath;
         renameProc.target = target;
         renameProc.index = currentIndex;
-        renameProc.command = uniquify ? ["sh", "-c", 't="$2"; b="${t%.md}"; n=2; while [ -e "$t" ]; do t="$b-$n.md"; n=$((n+1)); done; mv -n -- "$1" "$t" && printf %s "$t"', "sh", currentPath, target] : ["sh", "-c", '[ -e "$2" ] && exit 3; mv -n -- "$1" "$2" && printf %s "$2"', "sh", currentPath, target];
+        renameProc.command = uniquify ? ["sh", "-c", 't="$2"; b="${t%.md}"; n=2; while [ -e "$t" ]; do t="$b-$n.md"; n=$((n+1)); done; mv -n -- "$1" "$t" || exit 1; ' + moveAssets, "sh", currentPath, target] : ["sh", "-c", 't="$2"; [ -e "$t" ] && exit 3; mv -n -- "$1" "$t" || exit 1; ' + moveAssets, "sh", currentPath, target];
         renameProc.running = true;
     }
 
@@ -237,6 +248,7 @@ Item {
 
     Process {
         id: renameProc
+        property string source: ""
         property string target: ""
         property int index: -1
         stdout: StdioCollector {
@@ -254,6 +266,7 @@ Item {
             if (index === root.currentIndex)
                 fileView.path = newPath;
             root.saveSession();
+            root.moved(source, newPath);
         }
     }
 }

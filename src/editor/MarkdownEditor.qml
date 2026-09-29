@@ -3,6 +3,7 @@ import "logic/markdown.js" as Md
 import "logic/tables.js" as Tables
 import "logic/code.js" as Code
 import "logic/paste.js" as Paste
+import "logic/images.js" as Images
 
 TextEdit {
     id: root
@@ -38,10 +39,23 @@ TextEdit {
     property int _plainAfterFormatPos: -1
     property bool _loading: false
     property bool _flattening: false
+    property string imageBaseDir: ""
+    property real imageMaxHeight: 480
+    property var images: []
+    property var _imageSources: ({})
+    property var _imageSizes: ({})
+    property var _imageIds: ({})
+    property int _imageNextId: 1
+    property real _imageLayoutWidth: 0
+    readonly property real imageMaxWidth: width > 0 ? Math.max(64, width - leftPadding - rightPadding - 2) : 480
 
     signal edited
     signal rewriteStarted
     signal rewriteFinished
+    signal imageActivated(int pos, string url, string src, string alt)
+    signal imagePasteRequested
+    signal imageFilesPasted(var paths)
+    signal imageRequested
 
     textFormat: sourceMode ? TextEdit.PlainText : TextEdit.MarkdownText
     wrapMode: TextEdit.Wrap
@@ -78,6 +92,24 @@ TextEdit {
         textFormat: TextEdit.MarkdownText
     }
 
+    FontMetrics {
+        id: textMetrics
+        font: root.font
+    }
+
+    Image {
+        id: imageProbe
+        visible: false
+        asynchronous: false
+        cache: false
+    }
+
+    Timer {
+        id: imageLayoutTimer
+        interval: 150
+        onTriggered: root._relayoutImages()
+    }
+
     Timer {
         id: caretTimer
         interval: 530
@@ -92,7 +124,7 @@ TextEdit {
         if (!sourceMode)
             _flattenCells();
         revision++;
-        markdownText = sourceMode ? Md.keepBlankLines(text) : Code.repair(Tables.repair(text, plain(), tableLayouts));
+        markdownText = sourceMode ? Md.keepBlankLines(text) : Images.repair(Code.repair(Tables.repair(text, plain(), tableLayouts)), _imageSources);
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
             codeController.measure();
@@ -111,7 +143,11 @@ TextEdit {
     }
     onSelectionStartChanged: repaintTimer.restart()
     onSelectionEndChanged: repaintTimer.restart()
-    onWidthChanged: decorationTimer.restart()
+    onWidthChanged: {
+        decorationTimer.restart();
+        if (images.length > 0)
+            imageLayoutTimer.restart();
+    }
     onContentHeightChanged: decorationTimer.restart()
     onSourceModeChanged: decorationTimer.restart()
 
@@ -163,6 +199,13 @@ TextEdit {
         }
     }
 
+    Repeater {
+        model: root.images
+        delegate: ImageDecoration {
+            editor: root
+        }
+    }
+
     function refreshDecorations() {
         const d = decorations();
         _tasks = d ? d.tasks : [];
@@ -170,7 +213,139 @@ TextEdit {
         tableController.refresh();
         tableController.measure();
         codeController.measure();
+        _measureImages();
         repaintTimer.restart();
+    }
+
+    function _imageSize(src) {
+        const url = Images.resolve(src, imageBaseDir);
+        if (url in _imageSizes)
+            return _imageSizes[url];
+        let size = null;
+        if (/^file:\/\//.test(url)) {
+            imageProbe.source = url;
+            if (imageProbe.status === Image.Ready)
+                size = {
+                    width: imageProbe.implicitWidth,
+                    height: imageProbe.implicitHeight
+                };
+            imageProbe.source = "";
+        } else {
+            size = {
+                width: 640,
+                height: 360
+            };
+        }
+        _imageSizes[url] = size;
+        return size;
+    }
+
+    function _imageRegistry() {
+        return {
+            idOf: src => {
+                if (!(src in root._imageIds))
+                    root._imageIds[src] = root._imageNextId++;
+                return root._imageIds[src];
+            }
+        };
+    }
+
+    function _prepareImages(md) {
+        const result = Images.prepare(md, src => _imageSize(src), imageMaxWidth, imageMaxHeight, _imageRegistry());
+        _imageSources = result.sources;
+        _imageLayoutWidth = imageMaxWidth;
+        return result.text;
+    }
+
+    function _measureImages() {
+        const list = sourceMode || markdownText.indexOf("![") < 0 ? [] : Images.list(markdownText);
+        if (list.length === 0) {
+            if (images.length > 0)
+                images = [];
+            return;
+        }
+        const plainText = plain();
+        const out = [];
+        let pos = -1;
+        for (const img of list) {
+            pos = plainText.indexOf("\ufffc", pos + 1);
+            if (pos < 0)
+                break;
+            const natural = _imageSize(img.src);
+            const size = Images.fit(natural, _imageLayoutWidth || imageMaxWidth, imageMaxHeight) || Images.MISSING;
+            const r = positionToRectangle(pos);
+            out.push({
+                pos: pos,
+                x: r.x,
+                y: r.height > size.height ? Math.max(r.y, r.y + r.height - textMetrics.descent - size.height) : r.y,
+                width: size.width,
+                height: size.height,
+                url: Images.resolve(img.src, imageBaseDir),
+                src: img.src,
+                alt: img.alt,
+                missing: natural === null
+            });
+        }
+        if (JSON.stringify(out) !== JSON.stringify(images))
+            images = out;
+    }
+
+    function _relayoutImages() {
+        if (sourceMode || images.length === 0 || Math.abs(imageMaxWidth - _imageLayoutWidth) < 1)
+            return;
+        const start = selectionStart;
+        const end = selectionEnd;
+        replaceMarkdown(markdownText, () => {
+            const max = length;
+            if (end > start)
+                select(Math.min(start, max), Math.min(end, max));
+            else
+                cursorPosition = Math.min(start, max);
+        });
+    }
+
+    function insertImages(sources) {
+        if (sourceMode || sources.length === 0)
+            return false;
+        _removeSelection();
+        const pos = cursorPosition;
+        if (codeController.at(pos) || tableController.locate(pos))
+            return false;
+        const frag = sources.map(src => Images.markdownFor(src, "")).join("\n\n");
+        return rewriteAt(pos, (lines, found, shift) => {
+            const idx = Md.joinParagraph(lines, found);
+            const marker = lines[idx].indexOf(Md.MARKER);
+            const at = shift ? Paste.blockPrefix(lines[idx].replace(Md.MARKER, "")).length : marker;
+            return Paste.splice(lines, idx, at, frag, true).join("\n");
+        }, true);
+    }
+
+    function retargetImages(fromPrefix, toPrefix) {
+        const md = markdownText;
+        const found = Images.list(md).filter(img => img.src.indexOf(fromPrefix) === 0);
+        if (found.length === 0)
+            return false;
+        const lines = md.split("\n");
+        for (let k = found.length - 1; k >= 0; k--) {
+            const img = found[k];
+            const line = lines[img.line];
+            const src = toPrefix + img.src.substring(fromPrefix.length);
+            lines[img.line] = line.substring(0, img.index) + "![" + img.alt + "](" + src + img.title + ")" + line.substring(img.index + img.length);
+        }
+        const start = selectionStart;
+        replaceMarkdown(lines.join("\n"), () => cursorPosition = Math.min(start, length));
+        return true;
+    }
+
+    function removeImageAt(pos) {
+        if (plain().charAt(pos) !== "\ufffc")
+            return false;
+        _loading = true;
+        remove(pos, pos + 1);
+        _loading = false;
+        cursorPosition = pos;
+        edited();
+        return true;
     }
 
     function repaintTables() {
@@ -211,7 +386,7 @@ TextEdit {
                 text = md;
                 return;
             }
-            const prepared = Tables.prepare(Code.prepare(md), {
+            const prepared = Tables.prepare(Code.prepare(_prepareImages(md)), {
                 border: tableBorderColor.toString()
             });
             tableLayouts = prepared.layouts;
@@ -225,6 +400,7 @@ TextEdit {
 
     function load(md) {
         slashController.close();
+        _imageSizes = {};
         _loading = true;
         _assign(md);
         _loading = false;
@@ -360,8 +536,17 @@ TextEdit {
         if (sourceMode)
             return false;
         const plainText = Paste.normalize(_clipboard(plainClipboard));
-        if (plainText === "")
+        const editable = !codeController.at(cursorPosition) && !tableController.locate(cursorPosition);
+        if (plainText.trim() === "") {
+            if (editable)
+                imagePasteRequested();
             return true;
+        }
+        const files = editable && !plainOnly ? Images.filesFrom(plainText) : [];
+        if (files.length > 0) {
+            imageFilesPasted(files);
+            return true;
+        }
         _removeSelection();
         const pos = cursorPosition;
         if (codeController.at(pos))
@@ -582,6 +767,9 @@ TextEdit {
             return insertRule();
         case "code":
             return insertCodeBlock();
+        case "image":
+            imageRequested();
+            return true;
         case "rowAdd":
             return tableController.addRow();
         case "columnAdd":

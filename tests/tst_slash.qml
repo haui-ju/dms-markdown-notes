@@ -19,7 +19,7 @@ Item {
         function test_opens_on_empty_line() {
             type("/");
             verify(editor.slash.active);
-            compare(editor.slash.items.length, 11);
+            compare(editor.slash.items.length, 12);
             compare(editor.slash.query, "");
         }
 

@@ -18,6 +18,7 @@ src/
   MarkdownNotesWidget.qml       botón de la barra; pide toggle vía PluginGlobalVar
   MarkdownNotesSettings.qml     ajustes: notesDir, panelWidth, side
   store/NotesStore.qml          pestañas, archivos, sesión, recarga externa, renombrado
+  store/NoteAssets.qml          guarda imágenes (portapapeles o archivos) en la carpeta de la nota
   editor/                       SIN imports qs.* (testeable con qmltestrunner)
     MarkdownEditor.qml          TextEdit MarkdownText + teclas + reescrituras
     SlashController.qml         estado y teclas del menú "/"
@@ -26,16 +27,18 @@ src/
     CodeDecoration.qml          fondo, selección y texto coloreado sobre el código de Qt
     TaskDecoration.qml          casilla dibujada sobre la de Qt
     RuleDecoration.qml          separador dibujado sobre el de Qt
+    ImageDecoration.qml         imagen real (o aviso) sobre el hueco que reserva Qt; clic = visor
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
     logic/code.js               funciones puras: lenguajes, fences, prepare/repair, tokenizador
     logic/paste.js              funciones puras: normalizar y convertir lo pegado a Markdown
     logic/slash.js              comandos del menú "/" y filtro sin tildes
+    logic/images.js             funciones puras: find/prepare/repair de imágenes, rutas, tamaños
   panel/                        UI con componentes DMS (qs.Common, qs.Widgets)
     NotesPanel.qml              compone todo; guardado, atajos, acciones
     NoteTabs.qml  EditorView.qml  NoteFooter.qml  NoteMenu.qml
     PathInfoPopup.qml  SlashMenu.qml  TableToolbar.qml  TableResizeHandles.qml
-    CodeBlockBar.qml  CodeLanguageMenu.qml  NoteFileDialogs.qml
+    CodeBlockBar.qml  CodeLanguageMenu.qml  NoteFileDialogs.qml  ImageViewerModal.qml
   components/                   piezas reutilizables (IconButton, PopupSurface, MenuRow,
                                 IconLabelButton, TitleBar)
   windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
@@ -43,7 +46,7 @@ tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
   imports/qs/                   stubs mínimos de qs.Common y qs.Widgets para probar panel/
   tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout,
-                                code, paste, editor_view
+                                code, paste, editor_view, images
 ```
 
 Reglas:
@@ -115,6 +118,16 @@ flowchart LR
   - En código se inserta el texto plano en el fence (`Paste.forCode`, un fence dentro se neutraliza con U+200B). En celdas va en una línea con `|` escapado (`Paste.forCell`).
   - Se inserta con `rewriteAt(pos, fn, true)`. Si `pos` está al inicio del bloque, el marcador cae un carácter después: el punto real es tras el prefijo del bloque (`Paste.blockPrefix`), el primer carácter de la línea de código o el inicio de la celda (`Paste.cellStart`).
   - Si el fragmento acaba en un bloque (fence, tabla, separador), el cursor va a un párrafo NBSP debajo o al inicio del texto que seguía: un marcador en la línea de cierre del fence la rompe.
+- **Imágenes: placeholder SVG + overlay.**
+  - Qt descarta una imagen con alt vacío (`![](x)`), ignora el HTML con `<img>` y no carga un `<image href>` dentro de un SVG. Por eso `Images.prepare` sustituye cada imagen por `![imagen](data:image/svg+xml,<svg width=W height=H id=iN/>)`: un hueco transparente del tamaño ya ajustado (`fit`, máximo `imageMaxWidth` × `imageMaxHeight`). `ImageDecoration` dibuja la imagen real encima.
+  - `sources[url] = {alt, raw}` guarda el alt y la ruta originales. `Images.repair` los restaura y deshace los saltos que Qt mete alrededor de URLs largas: antes de la imagen, al inicio del párrafo y después, salvo si la línea siguiente empieza por lista, `>` o `#`.
+  - El id `iN` viene de `_imageIds` (clave ruta + alt), para que dos imágenes iguales den URLs distintas y el placeholder sea estable entre reasignaciones.
+  - El tamaño se mide una vez con un `Image` oculto síncrono (`imageProbe`) y se cachea en `_imageSizes`. Al cambiar el ancho, `imageLayoutTimer` rehace el placeholder con `replaceMarkdown`.
+  - `_measureImages` empareja la k-ésima U+FFFC del texto plano con la k-ésima imagen de `Images.list`. La posición sale de `positionToRectangle`; si la línea tiene texto, la imagen se apoya en la línea base (`FontMetrics.descent`).
+  - `Images.find` ignora las imágenes en código, código en línea, filas de tabla y `\![`. `insertImages` se niega dentro de código o tablas e inserta cada imagen como bloque.
+  - Rutas: relativas a la carpeta de la nota (`imageBaseDir`), codificadas con `Images.encodePath` (`encodeURI` + paréntesis). Al renombrar o mover la nota, `NotesStore.moved` → `retargetImages(viejo/, nuevo/)`.
+  - Portapapeles: un portapapeles solo con espacios o vacío en texto emite `imagePasteRequested`; `NoteAssets` lee `dms clipboard history --json`, y si la entrada más reciente es imagen la guarda con `dms clipboard get ID | base64 -d`. Rutas de imagen copiadas emiten `imageFilesPasted`. No hay `wl-paste`.
+  - El visor (`ImageViewerModal`) usa `useOverlayLayer` para quedar sobre el panel lateral, y mide la imagen con el `Image` de su contenido: un `Image` fuera de una ventana no carga.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
 - **Delegados con propiedades `required`:** `editor: editor` dentro del delegado se enlaza a la propia propiedad (queda `undefined`) y los clics fallan sin error visible en DMS. Usa `editor: root.editor`.

@@ -66,6 +66,12 @@ var BLOCKS = [
         label: "Tabla",
         icon: "table",
         keywords: "table grid"
+    },
+    {
+        id: "image",
+        label: "Imagen",
+        icon: "image",
+        keywords: "imagen foto picture captura img"
     }
 ];
 
