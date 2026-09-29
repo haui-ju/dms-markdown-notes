@@ -2,6 +2,8 @@
 
 Plugin para [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) que añade un panel lateral de notas Markdown estilo Notion: el formato se ve mientras escribes y cada nota es un archivo `.md` normal en `~/Notes`.
 
+![Markdown Notes: tareas, etiquetas, enlaces, cita, tabla y código](assets/screenshot.png)
+
 ## Instalación
 
 ```bash
@@ -18,11 +20,17 @@ Atajo global opcional en Hyprland:
 bind = SUPER, N, exec, dms ipc call markdownNotes toggle
 ```
 
-Comandos IPC: `toggle`, `open`, `close`, `newNote`, `popout` (ventana flotante), `dock` (volver al panel lateral).
+Comandos IPC: `toggle`, `open`, `close`, `newNote`, `popout` (ventana flotante), `dock` (volver al panel lateral), `openNote <nota>` y `search <texto>`:
+
+```bash
+dms ipc call markdownNotes openNote "diario/$(date +%F)"   # relativa a la carpeta de notas; se crea al escribir
+dms ipc call markdownNotes openNote ~/proyecto/README.md    # o una ruta absoluta
+dms ipc call markdownNotes search "#pendiente"              # abre el buscador con ese texto o etiqueta
+```
 
 ## Interfaz
 
-Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (buscar en las notas, ver Markdown, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
+Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (buscar en las notas, ver Markdown, reparar barras en código si hace falta, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
 
 ## Escritura
 
@@ -96,6 +104,14 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Flechas para moverte, Enter o clic para abrir: la nota se abre con la coincidencia seleccionada. Esc cierra.
 - Se ignoran carpetas ocultas (`.git`, `.trash`...). La nota actual se guarda antes de buscar.
 
+## Etiquetas
+
+- Escribe `#etiqueta` en cualquier parte del texto, como en Obsidian: letras (con tildes), números, `-`, `_` y `/` para anidar (`#proyecto/web`). Tiene que llevar al menos una letra (`#123` no es etiqueta) y un título `# ` no cuenta.
+- También valen las del front matter: `tags: [idea, web]` o una lista `tags:` con `- idea`.
+- Se ven resaltadas; **clic** en una abre el buscador con esa etiqueta.
+- En el buscador, `#` solo lista todas las etiquetas con cuántas notas las usan; elige una para ver sus notas. `#proyecto` encuentra también `#proyecto/web`.
+- No cuentan las que están en código, en URLs (`https://x.com/#id`) ni en enlaces a secciones (`[texto](#id)`).
+
 ## Pegar
 
 - Desde una web o un documento se conservan los títulos, listas, negritas, enlaces, tablas y código, pero no las fuentes, colores ni tamaños.
@@ -149,7 +165,9 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio. El alto de línea depende de la fuente: Noto Sans da unos 20 px a 14 px frente a los 17 de Inter.
 - Un título dentro de una cita (`> # título`) sale de la cita al guardar: Qt no lo escribe.
 - Un `|` dentro de un enlace `[[Nota|texto]]` en una celda de tabla corta la celda. En tablas usa `[[Nota]]`.
-- La búsqueda usa `grep` y lee los archivos del disco: no encuentra notas con otra extensión que `.md`.
+- La búsqueda usa `grep` (y `find` + `awk` para las etiquetas) y lee los archivos del disco: no encuentra notas con otra extensión que `.md`.
+- Si una etiqueta aparece a la vez en código en línea y fuera, el editor puede resaltar la del código en lugar de la otra: el texto que ve Qt no distingue el código en línea.
+- Las notas guardadas con versiones anteriores a la 0.7.0 pueden tener barras invertidas de más en el código en línea (`\\\#`). Menú `…` → **Reparar barras en código** las quita (se puede deshacer). La opción solo aparece si la nota las tiene.
 - Qt lee `__texto__` igual que `_texto_` y lo guarda así; en el editor se ve igual, pero otros visores lo mostrarán en cursiva en vez de negrita. Usa `**texto**` para negrita.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.
@@ -172,7 +190,7 @@ Los commits siguen [Conventional Commits](https://www.conventionalcommits.org/) 
 El proyecto usa [versionado semántico](https://semver.org/lang/es/). La versión vive en `plugin.json` y `package.json`, cada versión publicada lleva un tag `vX.Y.Z` y los cambios se anotan en [CHANGELOG.md](CHANGELOG.md). Para publicar una versión:
 
 ```bash
-pnpm release 0.6.0   # sube la versión, crea el commit y el tag
+pnpm release 0.7.0   # sube la versión, crea el commit y el tag
 git push --follow-tags
 ```
 

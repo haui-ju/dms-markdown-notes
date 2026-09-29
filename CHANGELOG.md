@@ -4,12 +4,22 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+### Añadido
+
+- Etiquetas `#etiqueta` (anidadas con `/`) y `tags:` del front matter. Se resaltan en la nota y un clic busca las notas que la usan.
+- En el buscador, `#` lista todas las etiquetas con su número de notas y `#etiqueta` filtra por ella.
+- Menú `…` → **Reparar barras en código**: quita las barras invertidas que se acumularon en el código en línea de notas guardadas con versiones anteriores. Solo aparece si hacen falta y se puede deshacer.
+- Comandos IPC `openNote <nota>` (relativa a la carpeta de notas o ruta absoluta; crea la carpeta si falta) y `search <texto>`.
+- Captura de pantalla en el README y para el registro de plugins.
+
 ### Corregido
 
 - Las barras invertidas ya no se multiplican en el código en línea (`\#` → `\\\#`…) cada vez que se guarda, dentro y fuera de tablas.
 - El código en línea que empieza o termina con acento grave (```` ``` ````, `` `texto` ``) ya no se rompe al guardar.
 - La negrita, la cursiva, el tachado y el código ya no se rompen ni ganan espacios cuando el párrafo es largo y Qt lo corta en varias líneas.
 - Las tablas pegadas con código en las celdas (desde texto, un editor de código o una página) muestran sus botones en todas las celdas y se mantienen iguales al recargar.
+- Una barra invertida justo antes de `|` en una celda (`x\\|y`) ya no parte la celda al recargar.
+- Las casillas, citas, separadores y enlaces ya no se quedan una línea desplazados al pasar del panel lateral a la ventana flotante o al cambiar la fuente.
 
 ## [0.6.0] - 2026-09-29
 
