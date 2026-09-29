@@ -9,6 +9,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 - Las citas se ven con una barra de color y un fondo suave, también cuando están vacías.
 - Enter al final de una cita añade otro párrafo a la cita; Enter en uno vacío sale de ella.
 - Más espacio encima y debajo de tablas e imágenes.
+- Ajuste "Fuente de las notas", con Noto Sans por defecto: separa más las líneas que Inter. Si la fuente no está instalada se usa la del sistema.
 
 ### Corregido
 

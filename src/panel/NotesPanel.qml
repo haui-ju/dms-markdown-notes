@@ -286,6 +286,7 @@ Item {
         anchors.right: parent.right
         anchors.topMargin: Theme.spacingS
         anchors.bottomMargin: Theme.spacingS
+        fontFamily: String(root.pluginData.noteFont ?? "Noto Sans").trim()
         onEdited: saveTimer.restart()
     }
 

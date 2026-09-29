@@ -15,6 +15,14 @@ PluginSettings {
         defaultValue: "~/Notes"
     }
 
+    StringSetting {
+        settingKey: "noteFont"
+        label: "Fuente de las notas"
+        description: "Noto Sans separa más las líneas que otras fuentes. Déjalo vacío para usar la fuente del sistema"
+        placeholder: "Noto Sans"
+        defaultValue: "Noto Sans"
+    }
+
     SliderSetting {
         settingKey: "panelWidth"
         label: "Ancho del panel"

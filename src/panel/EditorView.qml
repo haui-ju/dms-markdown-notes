@@ -7,6 +7,8 @@ Rectangle {
     id: root
 
     readonly property alias editor: editor
+    property string fontFamily: ""
+    readonly property string textFontFamily: fontFamily !== "" && Qt.fontFamilies().indexOf(fontFamily) >= 0 ? fontFamily : SettingsData.fontFamily
 
     signal edited
 
@@ -62,7 +64,7 @@ Rectangle {
                     type: root.syntax("#56b6c2"),
                     function: root.syntax("#61afef")
                 })
-            font.family: sourceMode ? SettingsData.monoFontFamily : SettingsData.fontFamily
+            font.family: sourceMode ? SettingsData.monoFontFamily : root.textFontFamily
             font.pixelSize: (SettingsData.notepadFontSize || 14) * (SettingsData.fontScale || 1)
             onCursorRectangleChanged: flick.ensureVisible(cursorRectangle)
             onEdited: root.edited()

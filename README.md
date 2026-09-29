@@ -117,7 +117,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - **Propiedades (front matter):** un bloque YAML al inicio (`---` / `title: ...` / `---`), como los de Obsidian o Hugo, se conserva intacto y no se muestra en la vista formateada. Se ve y se edita en la vista Markdown (Ctrl+Shift+M).
 - Se guardan automáticamente; borrar mueve el archivo a la papelera (`gio trash`).
 - Si el archivo cambia fuera del panel (otro editor, `git pull`), se recarga.
-- Ajustes del plugin: carpeta de notas, ancho del panel y lado (izquierda/derecha).
+- Ajustes del plugin: carpeta de notas, fuente de las notas (Noto Sans por defecto, que separa más las líneas; vacío = fuente del sistema), ancho del panel y lado (izquierda/derecha).
 
 ## Limitaciones
 
@@ -129,7 +129,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Las imágenes no se pueden redimensionar ni poner dentro de tablas o bloques de código. El texto alternativo (`![texto](...)`) se conserva pero no se muestra.
 - Pegar una imagen requiere el historial del portapapeles de DMS (`dms clipboard`).
 - No hay bloques arrastrables.
-- El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio.
+- El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio. El alto de línea depende de la fuente: Noto Sans da unos 20 px a 14 px frente a los 17 de Inter.
 - Un título dentro de una cita (`> # título`) sale de la cita al guardar, y un separador en la última línea de la nota se pierde: Qt no los escribe.
 - Qt lee `__texto__` igual que `_texto_` y lo guarda así; en el editor se ve igual, pero otros visores lo mostrarán en cursiva en vez de negrita. Usa `**texto**` para negrita.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.

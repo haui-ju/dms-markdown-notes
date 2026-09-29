@@ -88,6 +88,20 @@ Item {
             compare(view.editor.code.text(0), "uno");
         }
 
+        function test_note_font_falls_back_when_missing() {
+            view.fontFamily = "Fuente Que No Existe";
+            compare(view.editor.font.family, "sans-serif");
+            view.fontFamily = "";
+            compare(view.editor.font.family, "sans-serif");
+            const installed = Qt.fontFamilies()[0];
+            view.fontFamily = installed;
+            compare(view.editor.font.family, installed);
+            view.editor.setSourceMode(true);
+            compare(view.editor.font.family, "monospace");
+            view.editor.setSourceMode(false);
+            view.fontFamily = "";
+        }
+
         function test_language_chip_opens_menu_and_changes_language() {
             view.editor.load("```\nx\n```\n\nfin\n");
             const chip = button("codeLanguageChip");
