@@ -47,7 +47,7 @@ Rectangle {
             selectionColor: Theme.primary
             selectedTextColor: Theme.background
             decorationBackground: Qt.tint(Theme.surfaceContainer, root.color)
-            tableBorderColor: Qt.tint(decorationBackground, Theme.outlineMedium)
+            tableBorderColor: Qt.tint(decorationBackground, Theme.withAlpha(Theme.outline, 0.75))
             accentColor: Theme.primary
             checkMarkColor: Theme.background
             font.family: sourceMode ? SettingsData.monoFontFamily : SettingsData.fontFamily
