@@ -66,6 +66,7 @@ QtObject {
             before: before,
             after: after,
             last: block.end >= editor.length,
+            afterRule: _afterRule(block.start),
             needed: (before !== null && (after !== null || block.end >= editor.length)) || (after !== null && (block.start === 0 || _afterRule(block.start)))
         };
     }

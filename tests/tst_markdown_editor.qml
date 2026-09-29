@@ -427,6 +427,37 @@ Item {
             verify(after.y > r.y + r.height);
         }
 
+        function test_trailing_rule_is_kept() {
+            for (const source of ["texto\n\n---", "texto\n\n- - -\n", "a\n\n***\n"]) {
+                editor.load(source);
+                verify(/\n(- - -|---|\*\*\*)$/.test(md()), JSON.stringify(md()));
+                editor.refreshDecorations();
+                compare(editor._rules.length, 1);
+                editor.load(md());
+                compare(editor._rules.length, 1);
+            }
+        }
+
+        function test_typed_trailing_rule_is_kept_and_backspace_removes_it() {
+            editor.load("texto");
+            editor.cursorPosition = editor.length;
+            type("\n---\n");
+            compare(md(), "texto\n\n- - -");
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "texto");
+            type("sigue");
+            verify(md().indexOf("sigue") > 0, md());
+        }
+
+        function test_typing_after_trailing_rule() {
+            editor.load("texto\n\n---");
+            editor.cursorPosition = editor.length;
+            type("fin");
+            compare(md(), "texto\n\n- - -\nfin");
+            editor.refreshDecorations();
+            compare(editor._rules.length, 1);
+        }
+
         function test_decorations_leading_rule() {
             editor.load("- - -\nFIS:\n\n- uno\n");
             const d = editor.decorations();

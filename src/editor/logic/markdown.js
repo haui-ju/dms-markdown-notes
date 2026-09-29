@@ -314,6 +314,46 @@ function decorations(md, plain) {
     };
 }
 
+function splitFrontMatter(md) {
+    const lines = md.split("\n");
+    if (lines[0] !== "---")
+        return {
+            head: "",
+            body: md
+        };
+    const close = lines.findIndex((l, i) => i > 0 && (l === "---" || l === "..."));
+    if (close < 0)
+        return {
+            head: "",
+            body: md
+        };
+    let start = close + 1;
+    while (start < lines.length && lines[start].trim() === "")
+        start++;
+    return {
+        head: lines.slice(0, close + 1).join("\n") + "\n\n",
+        body: lines.slice(start).join("\n")
+    };
+}
+
+function _isRuleLine(line) {
+    return /^\s*(- - -|---+|\*\*\*+|___+)\s*$/.test(line);
+}
+
+function padTrailingRule(md) {
+    const lines = md.split("\n");
+    let last = lines.length - 1;
+    while (last >= 0 && lines[last].trim() === "")
+        last--;
+    if (last < 1 || !_isRuleLine(lines[last]) || lines.slice(0, last).every(l => l.trim() === ""))
+        return md;
+    return lines.slice(0, last + 1).concat(["", BLANK]).join("\n");
+}
+
+function unpadTrailingRule(md) {
+    return md.replace(/(\n[ \t]*(?:- - -|---+|\*\*\*+|___+)[ \t]*)\n+\u00A0\n*$/, "$1\n");
+}
+
 function plainParts(plain) {
     const parts = [];
     let start = 0;

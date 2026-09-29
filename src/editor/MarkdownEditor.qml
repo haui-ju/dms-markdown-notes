@@ -38,6 +38,7 @@ TextEdit {
     property var _tasks: []
     property var _rules: []
     property var _quotes: []
+    property string _frontMatter: ""
     property int _plainAfterFormatPos: -1
     property int _emptyHeadingPos: -1
     property int _emptyHeadingLevel: 0
@@ -154,7 +155,7 @@ TextEdit {
             markdownText = Md.keepBlankLines(text);
         } else {
             const plainText = plain();
-            markdownText = Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText);
+            markdownText = _frontMatter + Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText));
         }
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
@@ -537,7 +538,7 @@ TextEdit {
         const key = revision + "\n" + plainText;
         if (key !== _decorationsKey) {
             _decorationsKey = key;
-            _decorations = Md.decorations(markdownText, plainText);
+            _decorations = Md.decorations(markdownText.substring(_frontMatter.length), plainText);
         }
         return _decorations;
     }
@@ -558,12 +559,17 @@ TextEdit {
     }
 
     function _assign(md) {
-        if (md !== "") {
+        const parts = sourceMode ? {
+            head: "",
+            body: md
+        } : Md.splitFrontMatter(md);
+        _frontMatter = parts.head;
+        if (parts.body !== "") {
             if (sourceMode) {
                 text = md;
                 return;
             }
-            const prepared = Tables.prepare(Code.prepare(_prepareImages(md)), {
+            const prepared = Tables.prepare(Code.prepare(_prepareImages(Md.padTrailingRule(parts.body))), {
                 border: tableBorderColor.toString(),
                 margin: blockGap
             });
@@ -609,6 +615,8 @@ TextEdit {
         if (on) {
             text = Md.MARKER;
             cursorPosition = 1;
+        } else {
+            text = "";
         }
         sourceMode = on;
         _assign(md);
@@ -876,6 +884,15 @@ TextEdit {
                 return _blankQuote(block);
         }
         const blank = codeController.blankLine(cursorPosition);
+        if (blank && blank.last && blank.afterRule && !blank.before) {
+            const rule = blockRange(blank.start - 1).start;
+            _loading = true;
+            remove(rule, blank.start);
+            _loading = false;
+            cursorPosition = rule;
+            edited();
+            return true;
+        }
         if (blank && blank.before) {
             const target = blank.before.contentEnd;
             if (!blank.needed) {
