@@ -152,6 +152,35 @@ Item {
             compare(md(), "# T\n\n- [ ] a");
         }
 
+        function test_enter_after_heading_starts_paragraph() {
+            type("# Titulo\ntexto");
+            compare(md(), "# Titulo\n\ntexto");
+        }
+
+        function test_heading_then_subheading() {
+            type("# Titulo\n## Sub\n### Mini\nfin");
+            compare(md(), "# Titulo\n\n## Sub\n\n### Mini\n\nfin");
+        }
+
+        function test_hash_hash_on_new_line() {
+            type("hola\n## Sub");
+            compare(md(), "hola\n\n## Sub");
+        }
+
+        function test_backspace_removes_heading() {
+            type("# Titulo");
+            editor.cursorPosition = 0;
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "Titulo");
+        }
+
+        function test_backspace_removes_list_marker() {
+            type("- item");
+            editor.cursorPosition = 0;
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "item");
+        }
+
         function test_strike_inline() {
             type("a ~~no~~ b");
             compare(md(), "a ~~no~~ b");

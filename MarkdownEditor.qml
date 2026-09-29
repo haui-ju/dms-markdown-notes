@@ -173,9 +173,7 @@ TextEdit {
         if (!/^(#{1,3}|[-*+]|\d+[.)]|>|\[ ?\]|\[[xX]\])$/.test(prefix))
             return false;
         return rewriteLineAt(cursorPosition, (line, p) => {
-            if (/^#{1,6}\s/.test(line) || /^>/.test(line))
-                return null;
-            const after = _afterMarker(p);
+            const after = p.list ? _afterMarker(p) : line.substring(line.indexOf(marker));
             if (p.list) {
                 if (p.task || !/^\[[ xX]?\]$/.test(prefix))
                     return null;
@@ -207,9 +205,24 @@ TextEdit {
             return rewriteLineAt(cursorPosition, (line, p) => p.list ? null : "```\n" + marker + "\n```");
         }
         if (b.text === "") {
-            return rewriteLineAt(cursorPosition, (line, p) => p.list ? "\n" + marker : null);
+            return rewriteLineAt(cursorPosition, (line, p) => (p.list || /^(#{1,6}\s|>)/.test(line)) ? "\n" + marker : null);
         }
-        return false;
+        // Qt keeps the heading format on the new block; Notion starts a paragraph.
+        return rewriteLineAt(cursorPosition, line => /^#{1,6}\s/.test(line) ? line.replace(marker, "") + "\n\n" + marker : null);
+    }
+
+    // Backspace at the start of a heading, quote or list item drops the block format.
+    function tryBackspaceShortcut() {
+        const b = blockRange(cursorPosition);
+        if (cursorPosition !== b.start)
+            return false;
+        return rewriteLineAt(cursorPosition, (line, p) => {
+            if (p.list)
+                return p.rest;
+            if (/^(#{1,6}\s+|>\s?)/.test(line))
+                return _stripBlockPrefix(line);
+            return null;
+        });
     }
 
     // Qt copies the checked state into the new item; new tasks start unchecked.
@@ -418,6 +431,12 @@ TextEdit {
 
         if (event.key === Qt.Key_Space && !alt) {
             if (selectionStart === selectionEnd && tryBlockShortcut())
+                event.accepted = true;
+            return;
+        }
+
+        if (event.key === Qt.Key_Backspace && !alt && selectionStart === selectionEnd) {
+            if (tryBackspaceShortcut())
                 event.accepted = true;
             return;
         }
