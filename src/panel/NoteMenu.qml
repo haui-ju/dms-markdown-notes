@@ -24,6 +24,11 @@ PopupSurface {
         Repeater {
             model: [
                 {
+                    icon: "search",
+                    label: "Buscar en las notas",
+                    action: "search"
+                },
+                {
                     icon: root.sourceMode ? "visibility" : "code",
                     label: root.sourceMode ? "Ver formateado" : "Ver Markdown",
                     action: "source"

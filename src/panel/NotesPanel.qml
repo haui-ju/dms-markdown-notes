@@ -4,6 +4,7 @@ import qs.Common
 import qs.Services
 import "../store"
 import "../editor/logic/images.js" as Images
+import "../store/search.js" as Search
 
 Item {
     id: root
@@ -14,6 +15,8 @@ Item {
     property bool showPathInfo: false
     property bool showMenu: false
     property bool confirmDelete: false
+    property bool showSearch: false
+    property var pendingMatch: null
     property var histories: ({})
     property string historyPath: ""
 
@@ -32,7 +35,46 @@ Item {
     function closePopups() {
         showMenu = false;
         showPathInfo = false;
+        showSearch = false;
         confirmDelete = false;
+    }
+
+    function openSearch() {
+        flushSave();
+        closePopups();
+        showSearch = true;
+        searchPopup.open();
+    }
+
+    function openMatch(path, line, query) {
+        closePopups();
+        flushSave();
+        pendingMatch = {
+            path: path,
+            line: line,
+            query: query
+        };
+        if (path === store.currentPath)
+            applyMatch();
+        else
+            store.openPath(path);
+        focusEditor();
+    }
+
+    function applyMatch() {
+        const m = pendingMatch;
+        pendingMatch = null;
+        if (!m || m.path !== store.currentPath)
+            return;
+        let pos;
+        if (editor.sourceMode) {
+            pos = Search.lineOffset(editor.text, m.line, m.query);
+        } else {
+            const k = Search.occurrence(editor.markdown(), m.line, m.query);
+            pos = k < 0 ? -1 : Search.find(editor.plain(), m.query, k);
+        }
+        if (pos >= 0)
+            editor.select(pos, Math.min(pos + m.query.length, editor.length));
     }
 
     function flushSave() {
@@ -125,6 +167,9 @@ Item {
         }
         closePopups();
         switch (action) {
+        case "search":
+            openSearch();
+            break;
         case "source":
             toggleSource();
             break;
@@ -205,6 +250,8 @@ Item {
                     delete root.histories[path];
             }
             root.closePopups();
+            if (root.pendingMatch)
+                Qt.callLater(root.applyMatch);
         }
         onExternalChange: content => {
             if (saveTimer.running)
@@ -253,11 +300,20 @@ Item {
 
     Shortcut {
         enabled: root.active
+        sequence: "Ctrl+Shift+F"
+        onActivated: root.openSearch()
+    }
+
+    Shortcut {
+        enabled: root.active
         sequence: "Escape"
         onActivated: {
             if (root.editor.slash.active)
                 root.editor.slash.close();
-            else if (root.showMenu || root.showPathInfo)
+            else if (root.showSearch) {
+                root.closePopups();
+                root.focusEditor();
+            } else if (root.showMenu || root.showPathInfo)
                 root.closePopups();
             else
                 root.hideRequested();
@@ -334,6 +390,17 @@ Item {
         sourceMode: root.editor.sourceMode
         confirmDelete: root.confirmDelete
         onTriggered: action => root.runMenuAction(action)
+    }
+
+    SearchPopup {
+        id: searchPopup
+        visible: root.showSearch
+        anchors.top: tabs.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: Theme.spacingS
+        dir: store.dir
+        onPicked: (path, line, query) => root.openMatch(path, line, query)
     }
 
     NoteFileDialogs {
