@@ -55,11 +55,20 @@ function splitRow(line) {
 }
 
 function escapePipes(text) {
-    return text.replace(/(^|[^\\])\|/g, "$1\\|").replace(/(^|[^\\])\|/g, "$1\\|");
+    const code = /(`+)(?!`)[\s\S]*?[^`]\1(?!`)/g;
+    const outside = s => s.replace(/(\\*)\|/g, (m, slashes) => slashes.length % 2 === 0 ? slashes + "\\|" : m);
+    let out = "";
+    let last = 0;
+    let m;
+    while ((m = code.exec(text)) !== null) {
+        out += outside(text.substring(last, m.index)) + m[0].replace(/(^|[^\\])\|/g, "$1\\|").replace(/(^|[^\\])\|/g, "$1\\|");
+        last = m.index + m[0].length;
+    }
+    return out + outside(text.substring(last));
 }
 
-function _norm(s) {
-    return s.replace(/\\(.)/g, "$1").replace(/[*_`~\s\u00A0\uE000]+/g, "");
+function _norm(s, escaped) {
+    return (escaped ? s.replace(/\\(.)/g, "$1") : s).replace(/[*_`~\s\u00A0\uE000]+/g, "");
 }
 
 function find(lines) {
@@ -315,8 +324,8 @@ function _rejoin(segments, expected) {
     let i = 0;
     for (let c = 0; c < expected.length; c++) {
         let acc = segments[i++] || "";
-        const target = _norm(expected[c]);
-        while (_norm(acc) !== target && i < segments.length - (expected.length - 1 - c))
+        const target = _norm(expected[c], false);
+        while (_norm(acc, true) !== target && i < segments.length - (expected.length - 1 - c))
             acc += "|" + segments[i++];
         cells.push(escapePipes(acc.trim()));
     }

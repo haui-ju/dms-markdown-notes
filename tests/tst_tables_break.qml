@@ -505,5 +505,18 @@ Item {
             compare(table(), [["A", "B"], ["1", "2"]]);
             compare(editor.cursorPosition, cellAt(0, 3).end);
         }
+
+        function test_backslashes_before_pipes_are_stable() {
+            const rows = ["| `\\\\\\#` | `x\\\\\\|y` |", "| `x\\|y` | b |", "| x\\\\\\|y | b |", "| a\\\\ | b |", "| `\\\\\\#` | b |"];
+            for (const row of rows) {
+                editor.load("| a | b |\n|---|---|\n" + row);
+                const saved = editor.markdown();
+                const plain = editor.plain();
+                compare(Tables.scan(plain)[0].cells.length, 4, row);
+                editor.load(saved);
+                compare(editor.plain(), plain, row);
+                compare(editor.markdown(), saved, row);
+            }
+        }
     }
 }
