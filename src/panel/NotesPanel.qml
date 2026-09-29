@@ -47,6 +47,18 @@ Item {
         searchPopup.open(text);
     }
 
+    function closeSearch() {
+        closePopups();
+        focusEditor();
+    }
+
+    function toggleSearch() {
+        if (showSearch)
+            closeSearch();
+        else
+            openSearch();
+    }
+
     function openMatch(path, line, query) {
         closePopups();
         flushSave();
@@ -337,8 +349,8 @@ Item {
 
     Shortcut {
         enabled: root.active
-        sequence: "Ctrl+Shift+F"
-        onActivated: root.openSearch()
+        sequence: "Ctrl+F"
+        onActivated: root.toggleSearch()
     }
 
     Shortcut {
@@ -347,10 +359,9 @@ Item {
         onActivated: {
             if (root.editor.slash.active)
                 root.editor.slash.close();
-            else if (root.showSearch) {
-                root.closePopups();
-                root.focusEditor();
-            } else if (root.showMenu || root.showPathInfo)
+            else if (root.showSearch)
+                root.closeSearch();
+            else if (root.showMenu || root.showPathInfo)
                 root.closePopups();
             else
                 root.hideRequested();

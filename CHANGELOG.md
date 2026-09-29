@@ -4,6 +4,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+### Cambiado
+
+- El buscador de notas se abre y se cierra con **Ctrl+F** (antes Ctrl+Shift+F). Esc también lo cierra.
+
 ## [0.7.0] - 2026-09-29
 
 ### Añadido

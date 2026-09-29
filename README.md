@@ -99,9 +99,9 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 
 ## Buscar
 
-- **Ctrl+Shift+F** (o menú `…` → Buscar en las notas) abre un buscador de texto en todos los `.md` de la carpeta de notas, subcarpetas incluidas.
+- **Ctrl+F** (o menú `…` → Buscar en las notas) abre un buscador de texto en todos los `.md` de la carpeta de notas, subcarpetas incluidas.
 - Busca el texto literal sin distinguir mayúsculas, a partir de 2 letras. Muestra la nota, su carpeta y la línea con la coincidencia resaltada (hasta 100 resultados, 20 por nota).
-- Flechas para moverte, Enter o clic para abrir: la nota se abre con la coincidencia seleccionada. Esc cierra.
+- Flechas para moverte, Enter o clic para abrir: la nota se abre con la coincidencia seleccionada. Esc o Ctrl+F otra vez lo cierran.
 - Se ignoran carpetas ocultas (`.git`, `.trash`...). La nota actual se guarda antes de buscar.
 
 ## Etiquetas
@@ -132,7 +132,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 | Ctrl+L | Convertir en checkbox (o quitarlo) |
 | Ctrl+Shift+L / Ctrl+Shift+O | Lista con viñetas / numerada |
 | Ctrl+Shift+M | Alternar vista formateada / Markdown crudo |
-| Ctrl+Shift+F | Buscar en todas las notas |
+| Ctrl+F | Abrir o cerrar el buscador de notas (Esc también cierra) |
 | Ctrl+Z / Ctrl+Y (o Ctrl+Shift+Z) | Deshacer / rehacer |
 | Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+W / Esc | Nueva / abrir / guardar / cerrar pestaña / cerrar panel |
 
