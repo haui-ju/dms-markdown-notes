@@ -1,0 +1,16 @@
+{
+  "name": "dms-markdown-notes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Notion-like Markdown notes plugin for DankMaterialShell",
+  "license": "MIT",
+  "scripts": {
+    "prepare": "husky",
+    "test": "$(command -v qmltestrunner || echo /usr/lib/qt6/bin/qmltestrunner) -platform offscreen -input tests"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.0.0"
+  }
+}
