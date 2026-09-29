@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import qs.Common
 import qs.Widgets
 import "../editor"
@@ -16,7 +15,7 @@ Rectangle {
     border.width: 1
     border.color: Theme.outlineMedium
 
-    Flickable {
+    DankFlickable {
         id: flick
 
         property real savedY: 0
@@ -33,10 +32,6 @@ Rectangle {
         contentWidth: width
         contentHeight: editor.contentHeight + Theme.spacingL
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AsNeeded
-        }
 
         MarkdownEditor {
             id: editor
@@ -87,6 +82,8 @@ Rectangle {
     SlashMenu {
         editor: editor
         caret: {
+            if (!editor.slash.active)
+                return Qt.rect(0, 0, 0, 0);
             flick.contentY;
             const r = editor.cursorRectangle;
             return editor.mapToItem(root, r.x, r.y, r.width, r.height);
