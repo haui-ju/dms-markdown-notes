@@ -1,8 +1,8 @@
 {
   "id": "markdownNotes",
   "name": "Markdown Notes",
-  "description": "Notion-like Markdown notes in a slideout: live formatting, slash menu, tables, code blocks with highlighting, images and undo. Notes are plain .md files.",
-  "version": "0.6.0",
+  "description": "Notion-like Markdown notes in a slideout: live formatting, slash menu, tables, code blocks with highlighting, images, [[wiki links]], #tags, search across notes and undo. Notes are plain .md files.",
+  "version": "0.7.0",
   "author": "haui-ju",
   "icon": "edit_note",
   "type": "composite",
