@@ -1,4 +1,5 @@
 .pragma library
+.import "code.js" as Code
 
 var STOP = "\\s#,.;:!?()\\[\\]{}\"'`|<>*~=+\\\\&@$%^\\uFDD0\\uFDD1\\uFFFC\\u2028\\u2029\\uE000";
 var TAG = new RegExp("(^|[\\s(|*_~\\uFDD0\\uFDD1\\uFFFC\\u2028\\u2029])#([^" + STOP + "]+)", "g");
@@ -35,29 +36,8 @@ function at(tags, pos) {
     return null;
 }
 
-function _withoutCode(md) {
-    let fence = null;
-    return md.split("\n").map(line => {
-        const f = line.match(/^\s*(`{3,}|~{3,})/);
-        if (f)
-            fence = fence === null ? f[1].charAt(0) : (f[1].charAt(0) === fence ? null : fence);
-        return f || fence !== null ? "" : line;
-    }).join("\n").replace(/(`+)(?!`)[\s\S]*?[^`]\1(?!`)/g, " ");
-}
-
 function matchMarkdown(tags, md) {
-    const left = {};
-    for (const t of parse(_withoutCode(md))) {
-        const key = t.tag.toLowerCase();
-        left[key] = (left[key] || 0) + 1;
-    }
-    return tags.filter(t => {
-        const key = t.tag.toLowerCase();
-        if (!left[key])
-            return false;
-        left[key]--;
-        return true;
-    });
+    return Code.outsideCode(tags, md, parse, t => t.tag.toLowerCase());
 }
 
 function fromQuery(query) {

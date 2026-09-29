@@ -3,6 +3,31 @@
 var BLANK = "\u00A0";
 var TAB_SIZE = 4;
 
+function withoutCode(md) {
+    let fence = null;
+    return md.split("\n").map(line => {
+        const f = line.match(/^\s*(`{3,}|~{3,})/);
+        if (f)
+            fence = fence === null ? f[1].charAt(0) : (f[1].charAt(0) === fence ? null : fence);
+        return f || fence !== null ? "" : line;
+    }).join("\n").replace(/(`+)(?!`)[\s\S]*?[^`]\1(?!`)/g, " ");
+}
+
+function outsideCode(items, md, parse, keyOf) {
+    const left = {};
+    for (const item of parse(withoutCode(md))) {
+        const key = keyOf(item);
+        left[key] = (left[key] || 0) + 1;
+    }
+    return items.filter(item => {
+        const key = keyOf(item);
+        if (!left[key])
+            return false;
+        left[key]--;
+        return true;
+    });
+}
+
 var LANGUAGES = [
     {
         id: "",

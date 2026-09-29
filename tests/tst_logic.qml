@@ -319,6 +319,27 @@ TestCase {
         compare(Md.unescapeCodeSpans("``a`b`` y ` sin cerrar"), "``a`b`` y ` sin cerrar");
     }
 
+    function test_unescape_code_spans_after_padded_span() {
+        compare(Md.unescapeCodeSpans("`` \\`a```  y ` z`  w ` q `"), "`` `a` `` y `z` w `q`");
+        compare(Md.unescapeCodeSpans("x ```` ``` ```` y ` z`  w ` k` ."), "x ```` ``` ```` y `z` w `k`.");
+        compare(Md.unescapeCodeSpans("` a` y ``\\`b```"), "` a` y `` `b` ``");
+        compare(Md.unescapeCodeSpans("``\\`a```\n\n` z`  w"), "`` `a` ``\n\n` z`  w");
+    }
+
+    function test_decorations_ignore_images() {
+        const md = "- [x] hecha\n\n![alt](a.png)\n\n> cita";
+        const deco = Md.decorations(md, "hecha\u2029\ufffc\u2029cita");
+        verify(deco !== null);
+        compare(deco.tasks.length, 1);
+        compare(deco.quotes.length, 1);
+    }
+
+    function test_repair_wrapping_joins_wiki_links() {
+        compare(Md.repairWrapping("valen [[Otra\nnota#Sección]] y"), "valen [[Otra nota#Sección]] y");
+        compare(Md.repairWrapping("[[a]] y\n[[b]]"), "[[a]] y\n[[b]]");
+        compare(Md.repairWrapping("abre [[\nsin cerrar"), "abre [[\nsin cerrar");
+    }
+
     function test_unescape_code_spans_across_wrapped_lines() {
         compare(Md.unescapeCodeSpans("uno `\\#\nx` dos"), "uno `#\nx` dos");
     }

@@ -49,6 +49,14 @@ TestCase {
         const md = "Ver \\[[Nota]] y \\[[b|c]]\n\n```\n\\[[code]]\n```\n\n~~~\n\\[[t]]\n```\n~~~\n| \\[[Celda]] |";
         compare(Links.unescape(md), "Ver [[Nota]] y [[b|c]]\n\n```\n\\[[code]]\n```\n\n~~~\n\\[[t]]\n```\n~~~\n| [[Celda]] |");
         compare(Links.unescape("\\[a] \\[[x"), "\\[a] \\[[x");
+        compare(Links.unescape("valen \\[[Otra\nnota]] y"), "valen [[Otra\nnota]] y");
+        compare(Links.unescape("\\[[a\n\nb]]"), "\\[[a\n\nb]]");
+    }
+
+    function test_match_markdown_skips_code_spans() {
+        const plain = "usa [[...]] y [[Nota]] | [[b|c]] [[Otra nota]]";
+        const md = "usa `[[...]]` y [[Nota]] | [[b\\|c]] [[Otra\nnota]]";
+        compare(Links.matchMarkdown(Links.parse(plain), md).map(l => l.target), ["Nota", "b", "Otra nota"]);
     }
 
     function test_safe_target_blocks_escape() {

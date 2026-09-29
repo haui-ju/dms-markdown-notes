@@ -306,8 +306,9 @@ TextEdit {
         _rules = d ? d.rules : [];
         _quotes = d ? d.quotes : [];
         const text = d ? plain() : "";
-        _links = d ? Links.parse(text).filter(link => !codeController.at(link.start)) : [];
-        _tags = d ? Tags.matchMarkdown(Tags.parse(text).filter(tag => !codeController.at(tag.start) && !Links.at(_links, tag.start)), Md.splitFrontMatter(markdownText).body) : [];
+        const body = d ? Md.splitFrontMatter(markdownText).body : "";
+        _links = d ? Links.matchMarkdown(Links.parse(text).filter(link => !codeController.at(link.start)), body) : [];
+        _tags = d ? Tags.matchMarkdown(Tags.parse(text).filter(tag => !codeController.at(tag.start) && !Links.at(_links, tag.start)), body) : [];
         tableController.refresh();
         tableController.measure();
         codeController.measure();

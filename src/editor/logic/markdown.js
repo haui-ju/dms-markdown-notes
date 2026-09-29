@@ -228,7 +228,7 @@ function _quoteText(line) {
 }
 
 function norm(s) {
-    return s.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\\(.)/g, "$1").replace(/[*_`~\u00A0\s\uE000\uFFFC]+/g, "");
+    return s.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\\(.)/g, "$1").replace(/[*_`~\u00A0\s\uE000\uFFFC]+/g, "");
 }
 
 function decorations(md, plain) {
@@ -364,6 +364,7 @@ function _runAt(text, i) {
 function _mapSpans(text, fn) {
     let out = "";
     let i = 0;
+    let padded = false;
     while (i < text.length) {
         const ch = text.charAt(i);
         if (ch === "\\" && i + 1 < text.length) {
@@ -385,16 +386,24 @@ function _mapSpans(text, fn) {
             continue;
         }
         const close = j + _runAt(text, j) - n;
-        const content = fn(text.substring(i + n, close));
-        const misplacedPad = /^ `|`$/.test(content) && /^ .*[^ ]$/.test(content) && text.charAt(close + n) === " ";
+        let content = fn(text.substring(i + n, close));
+        const edged = _tickEdged(content);
+        const shifted = (edged || padded) && /^ .*[^ ]$/.test(content) && text.charAt(close + n) === " ";
+        if (padded && !edged)
+            content = shifted ? content.substring(1) : (/^ .*[^ ].* $/.test(content) ? content.slice(1, -1) : content);
         out += fence + _padCode(content) + fence;
-        i = close + n + (misplacedPad ? 1 : 0);
+        padded = padded || edged;
+        i = close + n + (shifted ? 1 : 0);
     }
     return out;
 }
 
+function _tickEdged(content) {
+    return /^`|`$/.test(content.replace(/^ | $/g, "")) || /^`|`$/.test(content);
+}
+
 function _padCode(content) {
-    if (!/^`|`$/.test(content.replace(/^ | $/g, "")) && !/^`|`$/.test(content))
+    if (!_tickEdged(content))
         return content;
     const core = /^ .*[^ ].* $/.test(content) ? content.slice(1, -1) : content.replace(/^ /, "");
     return " " + core + " ";
@@ -422,7 +431,7 @@ function _endsInOpenCode(text) {
 }
 
 function repairWrapping(md) {
-    if (!/[*_~`]\n/.test(md))
+    if (!/[*_~`]\n/.test(md) && !/\[\[[^\]\n]*\n/.test(md))
         return md;
     const lines = md.split("\n");
     let fence = null;
@@ -441,6 +450,12 @@ function repairWrapping(md) {
         const next = lines[i + 1].match(/^([ \t]*)(\S.*)$/);
         if (!next || /^(`{3,}|~{3,})/.test(next[2]))
             continue;
+        if (lines[i].lastIndexOf("[[") > lines[i].lastIndexOf("]]") && /^[^\[]*\]\]/.test(next[2]) && !/^\s*\|/.test(lines[i + 1])) {
+            lines[i] += " " + next[2];
+            lines.splice(i + 1, 1);
+            i--;
+            continue;
+        }
         const openCode = /`$/.test(lines[i]) && _endsInOpenCode(lines.slice(paraStart, i + 1).join("\n"));
         const opener = lines[i].match(/^(.*\S)[ \t]+(`+|\*\*|__|~~|\*|_)$/);
         const isOpener = opener && (opener[2].charAt(0) !== "`" || openCode);

@@ -1,4 +1,5 @@
 .pragma library
+.import "code.js" as Code
 
 var LINK = /\[\[([^\[\]\n\u2029\u2028]+?)\]\]/g;
 
@@ -28,6 +29,10 @@ function parse(plain) {
     return out;
 }
 
+function matchMarkdown(links, md) {
+    return Code.outsideCode(links, md, s => parse(s.replace(/\\\|/g, "|").replace(/([^\n])\n(?!\n)/g, "$1 ")), l => l.target.toLowerCase());
+}
+
 function at(links, pos) {
     for (const link of links) {
         if (pos >= link.start && pos < link.end)
@@ -37,18 +42,29 @@ function at(links, pos) {
 }
 
 function unescape(md) {
+    if (md.indexOf("\\[[") < 0)
+        return md;
+    const out = [];
+    let prose = [];
     let fence = null;
-    return md.split("\n").map(line => {
+    const flush = () => {
+        if (prose.length > 0)
+            out.push(prose.join("\n").replace(/\\\[\[((?:[^\[\]\n]|\n(?!\n))+?)\]\]/g, "[[$1]]"));
+        prose = [];
+    };
+    for (const line of md.split("\n")) {
         const f = line.match(/^\s*(`{3,}|~{3,})/);
-        if (f) {
-            if (fence === null)
-                fence = f[1].charAt(0);
-            else if (f[1].charAt(0) === fence)
-                fence = null;
-            return line;
+        if (f || fence !== null) {
+            flush();
+            if (f)
+                fence = fence === null ? f[1].charAt(0) : (f[1].charAt(0) === fence ? null : fence);
+            out.push(line);
+        } else {
+            prose.push(line);
         }
-        return fence === null ? line.replace(/\\\[\[([^\[\]\n]+?)\]\]/g, "[[$1]]") : line;
-    }).join("\n");
+    }
+    flush();
+    return out.join("\n");
 }
 
 function safeTarget(target) {
