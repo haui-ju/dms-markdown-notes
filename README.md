@@ -18,7 +18,11 @@ Atajo global opcional en Hyprland:
 bind = SUPER, N, exec, dms ipc call markdownNotes toggle
 ```
 
-Comandos IPC: `toggle`, `open`, `close`, `newNote`.
+Comandos IPC: `toggle`, `open`, `close`, `newNote`, `popout` (ventana flotante), `dock` (volver al panel lateral).
+
+## Interfaz
+
+Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (ver Markdown, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
 
 ## Escritura
 
@@ -33,6 +37,8 @@ Comandos IPC: `toggle`, `open`, `close`, `newNote`.
 | ```` ``` ```` + Enter | Bloque de código |
 | `**texto**`, `*texto*`, `` `texto` ``, `~~texto~~` | Negrita, cursiva, código, tachado |
 | Enter en un elemento vacío | Termina la lista |
+| Enter al final de un título | La línea siguiente es texto normal |
+| Retroceso al inicio de un título, cita o lista | Vuelve a texto normal |
 
 ## Atajos
 
@@ -43,7 +49,7 @@ Comandos IPC: `toggle`, `open`, `close`, `newNote`.
 | Ctrl+L | Convertir en checkbox (o quitarlo) |
 | Ctrl+Shift+L / Ctrl+Shift+O | Lista con viñetas / numerada |
 | Ctrl+Shift+M | Alternar vista formateada / Markdown crudo |
-| Ctrl+N / Ctrl+S / Esc | Nueva nota / guardar / cerrar |
+| Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+W / Esc | Nueva / abrir / guardar / cerrar pestaña / cerrar panel |
 
 ## Notas
 
@@ -54,6 +60,7 @@ Comandos IPC: `toggle`, `open`, `close`, `newNote`.
 
 ## Limitaciones
 
+- La vista formateada usa la fuente normal del sistema, no la monoespaciada: Qt guarda el texto en fuente monoespaciada como `código`.
 - Qt normaliza el Markdown al guardar (por ejemplo `*` puede quedar como `-` y los párrafos largos se envuelven a ~80 columnas). El contenido no cambia.
 - Tras un autoformato no se puede deshacer con Ctrl+Z.
 - No hay menú `/`, bloques arrastrables ni edición visual de tablas (usa la vista Markdown).

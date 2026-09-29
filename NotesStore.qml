@@ -1,29 +1,30 @@
 import QtQuick
-import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
 
-// Markdown files in a plain folder: listing, loading, saving, creating,
-// deleting and renaming auto-named notes after their first heading.
+// Open notes (tabs) over plain Markdown files: loading, saving, creating,
+// renaming, deleting and a persisted session of open tabs.
 Item {
     id: root
 
     property string notesDir: "~/Notes"
+    readonly property string home: Quickshell.env("HOME") || ""
     readonly property string dir: {
-        const home = Quickshell.env("HOME") || "";
         const d = (notesDir || "~/Notes").trim().replace(/^~(?=$|\/)/, home);
         return d.replace(/\/+$/, "");
     }
+    readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/dms-markdown-notes"
 
-    property string currentPath: ""
+    property var tabs: []
+    property int currentIndex: -1
+    readonly property string currentPath: currentIndex >= 0 && currentIndex < tabs.length ? tabs[currentIndex] : ""
     readonly property string currentName: currentPath ? currentPath.split("/").pop() : ""
+    readonly property bool currentIsAutoNamed: autoNamePattern.test(currentName)
+
     property string lastSavedContent: ""
-    property bool saving: false
     property real lastWriteAt: 0
     property bool _externalReloadPending: false
-
-    readonly property alias model: folderModel
-    readonly property int count: folderModel.count
+    property bool sessionLoaded: false
 
     signal noteLoaded(string content)
     signal externalChange(string content)
@@ -32,27 +33,15 @@ Item {
 
     visible: false
 
-    function ensureDir() {
-        if (dir)
-            Quickshell.execDetached(["mkdir", "-p", dir]);
+    function titleOf(path) {
+        return path.split("/").pop().replace(/\.md$/i, "");
     }
 
-    function pathAt(index) {
-        return index >= 0 && index < folderModel.count ? folderModel.get(index, "filePath") : "";
+    function ensureDirs() {
+        Quickshell.execDetached(["mkdir", "-p", dir, stateDir]);
     }
 
-    function indexOfPath(path) {
-        for (let i = 0; i < folderModel.count; i++) {
-            if (folderModel.get(i, "filePath") === path)
-                return i;
-        }
-        return -1;
-    }
-
-    function open(path) {
-        if (!path)
-            return;
-        currentPath = path;
+    function _load(path) {
         fileView.path = "";
         fileView.path = path;
         fileView.waitForJob();
@@ -61,95 +50,166 @@ Item {
         noteLoaded(content);
     }
 
-    property bool _openRecentPending: false
+    function switchTo(index) {
+        if (index < 0 || index >= tabs.length)
+            return;
+        currentIndex = index;
+        _load(tabs[index]);
+        saveSession();
+    }
 
-    function openMostRecent() {
-        if (folderModel.status !== FolderListModel.Ready && !openRecentFallback.triggeredOnce) {
-            _openRecentPending = true;
-            openRecentFallback.restart();
+    function openPath(path) {
+        if (!path)
+            return;
+        const i = tabs.indexOf(path);
+        if (i >= 0) {
+            switchTo(i);
             return;
         }
-        _openRecentPending = false;
-        if (folderModel.count > 0)
-            open(pathAt(0));
-        else
+        tabs = tabs.concat([path]);
+        switchTo(tabs.length - 1);
+    }
+
+    function create() {
+        ensureDirs();
+        const stamp = Qt.formatDateTime(new Date(), "yyyy-MM-dd-HHmmss");
+        let name = "nota-" + stamp + ".md";
+        let n = 1;
+        while (tabs.indexOf(dir + "/" + name) >= 0)
+            name = "nota-" + stamp + "-" + (n++) + ".md";
+        openPath(dir + "/" + name);
+    }
+
+    function ensureTab() {
+        if (tabs.length === 0)
             create();
+        else if (currentIndex < 0)
+            switchTo(0);
+    }
+
+    // Closing a tab keeps the file; empty auto-named notes never reach disk.
+    function closeTab(index) {
+        if (index < 0 || index >= tabs.length)
+            return;
+        const next = tabs.slice();
+        next.splice(index, 1);
+        tabs = next;
+        if (tabs.length === 0) {
+            currentIndex = -1;
+            create();
+            return;
+        }
+        const target = index < currentIndex ? currentIndex - 1 : Math.min(currentIndex, tabs.length - 1);
+        currentIndex = -1;
+        switchTo(target);
     }
 
     function save(content) {
         if (!currentPath || content === lastSavedContent)
             return;
-        saving = true;
         lastSavedContent = content;
         lastWriteAt = Date.now();
         fileView.setText(content);
-        saving = false;
-        maybeRenameFromTitle(content);
+        if (currentIsAutoNamed)
+            maybeRenameFromTitle(content);
     }
 
-    function create() {
-        ensureDir();
-        const stamp = Qt.formatDateTime(new Date(), "yyyy-MM-dd-HHmmss");
-        let name = "nota-" + stamp + ".md";
-        let n = 1;
-        while (indexOfPath(dir + "/" + name) >= 0)
-            name = "nota-" + stamp + "-" + (n++) + ".md";
-        const path = dir + "/" + name;
-        currentPath = path;
-        lastSavedContent = "";
-        fileView.path = path;
-        fileView.setText("");
-        noteLoaded("");
-    }
-
-    function trash(path) {
+    function trashCurrent() {
+        const path = currentPath;
         if (!path)
             return;
         Quickshell.execDetached(["gio", "trash", "--", path]);
-        if (path === currentPath) {
-            currentPath = "";
-            fileView.path = "";
-            pickAfterDelete.restart();
-        }
+        closeTab(currentIndex);
     }
 
     function slugify(title) {
-        return title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9ñ]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 60);
+        return title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 60);
     }
 
-    // Notes created as "nota-<fecha>.md" take the name of their first "# heading".
-    function maybeRenameFromTitle(content) {
-        if (!autoNamePattern.test(currentName))
+    function renameCurrent(newTitle) {
+        const slug = (newTitle || "").trim().replace(/\.md$/i, "").replace(/[\/\\]/g, "-");
+        if (!slug || !currentPath)
             return;
+        const folder = currentPath.substring(0, currentPath.lastIndexOf("/"));
+        _moveCurrent(folder + "/" + slug + ".md", false);
+    }
+
+    // Saves the current note under a new path chosen by the user.
+    function saveAs(path, content) {
+        if (!path)
+            return;
+        if (!/\.md$/i.test(path))
+            path += ".md";
+        const old = currentPath;
+        lastSavedContent = content;
+        lastWriteAt = Date.now();
+        fileView.path = path;
+        fileView.setText(content);
+        const next = tabs.slice();
+        next[currentIndex] = path;
+        tabs = next;
+        saveSession();
+        if (old && autoNamePattern.test(old.split("/").pop()))
+            Quickshell.execDetached(["rm", "-f", "--", old]);
+    }
+
+    // Auto-named notes take the name of their first "# heading".
+    function maybeRenameFromTitle(content) {
         const m = content.match(/^#\s+(.+)$/m);
         if (!m)
             return;
         const slug = slugify(m[1]);
-        if (!slug)
+        if (slug)
+            _moveCurrent(dir + "/" + slug + ".md", true);
+    }
+
+    function _moveCurrent(target, uniquify) {
+        if (target === currentPath)
             return;
-        let target = dir + "/" + slug + ".md";
-        let n = 2;
-        while (indexOfPath(target) >= 0)
-            target = dir + "/" + slug + "-" + (n++) + ".md";
-        renameProc.command = ["mv", "-n", "--", currentPath, target];
         renameProc.target = target;
+        renameProc.index = currentIndex;
+        renameProc.command = uniquify ? ["sh", "-c", 't="$2"; b="${t%.md}"; n=2; while [ -e "$t" ]; do t="$b-$n.md"; n=$((n+1)); done; mv -n -- "$1" "$t" && printf %s "$t"', "sh", currentPath, target] : ["sh", "-c", '[ -e "$2" ] && exit 3; mv -n -- "$1" "$2" && printf %s "$2"', "sh", currentPath, target];
         renameProc.running = true;
     }
 
-    Component.onCompleted: ensureDir()
-    onDirChanged: ensureDir()
+    function saveSession() {
+        if (!sessionLoaded)
+            return;
+        sessionFile.setText(JSON.stringify({
+            tabs: tabs,
+            current: currentIndex
+        }, null, 2));
+    }
 
-    FolderListModel {
-        id: folderModel
-        folder: root.dir ? "file://" + root.dir : ""
-        nameFilters: ["*.md"]
-        showDirs: false
-        showHidden: false
-        sortField: FolderListModel.Time
-        sortReversed: false
-        onStatusChanged: {
-            if (status === FolderListModel.Ready && root._openRecentPending)
-                Qt.callLater(root.openMostRecent);
+    function loadSession() {
+        let data = {};
+        try {
+            data = JSON.parse(sessionFile.text() || "{}");
+        } catch (e) {
+            data = {};
+        }
+        tabs = Array.isArray(data.tabs) ? data.tabs.filter(p => typeof p === "string" && p) : [];
+        sessionLoaded = true;
+        if (tabs.length > 0)
+            switchTo(Math.max(0, Math.min(data.current || 0, tabs.length - 1)));
+    }
+
+    Component.onCompleted: ensureDirs()
+    onDirChanged: ensureDirs()
+
+    FileView {
+        id: sessionFile
+        path: root.stateDir + "/session.json"
+        blockLoading: true
+        atomicWrites: true
+        printErrors: false
+        onLoaded: {
+            if (!root.sessionLoaded)
+                root.loadSession();
+        }
+        onLoadFailed: {
+            if (!root.sessionLoaded)
+                root.loadSession();
         }
     }
 
@@ -184,29 +244,22 @@ Item {
     Process {
         id: renameProc
         property string target: ""
+        property int index: -1
+        stdout: StdioCollector {
+            id: renameOut
+        }
         onExited: code => {
-            if (code === 0) {
-                root.currentPath = target;
-                fileView.path = target;
+            if (code !== 0)
+                return;
+            const newPath = renameOut.text.trim() || target;
+            const next = root.tabs.slice();
+            if (index >= 0 && index < next.length) {
+                next[index] = newPath;
+                root.tabs = next;
             }
+            if (index === root.currentIndex)
+                fileView.path = newPath;
+            root.saveSession();
         }
-    }
-
-    // A folder that does not exist yet never reports Ready.
-    Timer {
-        id: openRecentFallback
-        property bool triggeredOnce: false
-        interval: 1500
-        onTriggered: {
-            triggeredOnce = true;
-            if (root._openRecentPending)
-                root.openMostRecent();
-        }
-    }
-
-    Timer {
-        id: pickAfterDelete
-        interval: 300
-        onTriggered: root.openMostRecent()
     }
 }

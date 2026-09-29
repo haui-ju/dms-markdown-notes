@@ -8,6 +8,26 @@ import qs.Modules.Plugins
 PluginComponent {
     id: root
 
+    property bool popoutMode: false
+
+    function toggle(screenName) {
+        if (popoutMode) {
+            if (popout.visible)
+                popout.hide();
+            else
+                popout.show();
+            return;
+        }
+        if (slideout.isVisible)
+            slideout.hide();
+        else
+            slideout.show(screenName);
+    }
+
+    function isShown() {
+        return popoutMode ? popout.visible : slideout.isVisible;
+    }
+
     PluginGlobalVar {
         id: toggleRequest
         varName: "toggleRequest"
@@ -19,35 +39,82 @@ PluginComponent {
         function onValueChanged() {
             const req = toggleRequest.value;
             if (req && req.t)
-                slideout.toggle(req.screen || "");
+                root.toggle(req.screen || "");
         }
     }
 
     MarkdownNotesSlideout {
         id: slideout
         pluginData: root.pluginData
+        onShown: panel.onShown()
+        onAboutToHide: panel.flushSave()
+    }
+
+    MarkdownNotesPopout {
+        id: popout
+        onVisibleChanged: {
+            if (visible)
+                panel.onShown();
+            else
+                panel.flushSave();
+        }
+    }
+
+    NotesPanel {
+        id: panel
+        parent: root.popoutMode ? popout.container : slideout.container
+        anchors.fill: parent
+        pluginData: root.pluginData
+        inPopout: root.popoutMode
+        active: root.popoutMode ? popout.visible : slideout.isVisible
+
+        onHideRequested: root.popoutMode ? popout.hide() : slideout.hide()
+        onPopoutRequested: {
+            slideout.hide();
+            root.popoutMode = true;
+            popout.show();
+        }
+        onDockRequested: {
+            popout.hide();
+            root.popoutMode = false;
+            slideout.show("");
+        }
     }
 
     IpcHandler {
         target: "markdownNotes"
 
         function toggle(): string {
-            slideout.toggle("");
-            return slideout.isVisible ? "shown" : "hidden";
+            root.toggle("");
+            return root.isShown() ? "shown" : "hidden";
         }
 
         function open(): string {
-            slideout.show("");
+            if (!root.isShown())
+                root.toggle("");
             return "shown";
         }
 
         function close(): string {
-            slideout.hide();
+            if (root.isShown())
+                root.toggle("");
             return "hidden";
         }
 
+        function popout(): string {
+            panel.popoutRequested();
+            return "popout";
+        }
+
+        function dock(): string {
+            panel.dockRequested();
+            return "docked";
+        }
+
         function newNote(): string {
-            slideout.newNote();
+            if (!root.isShown())
+                root.toggle("");
+            panel.newNote();
             return "created";
         }
     }
