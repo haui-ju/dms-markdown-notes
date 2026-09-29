@@ -3,7 +3,7 @@
   "name": "Markdown Notes",
   "description": "Notion-like Markdown notes slideout: headings, lists, clickable checklists and inline formatting while you type. Notes are plain .md files in ~/Notes.",
   "version": "0.1.0",
-  "author": "Luis-Fernando-MP",
+  "author": "haui-ju",
   "icon": "edit_note",
   "type": "composite",
   "capabilities": ["daemon", "dankbar-widget", "slideout"],

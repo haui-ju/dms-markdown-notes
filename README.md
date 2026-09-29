@@ -5,7 +5,7 @@ Plugin para [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell
 ## Instalación
 
 ```bash
-git clone https://github.com/Luis-Fernando-MP/dms-markdown-notes.git
+git clone https://github.com/haui-ju/dms-markdown-notes.git
 cd dms-markdown-notes
 ./install.sh
 ```
