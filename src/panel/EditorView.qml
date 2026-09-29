@@ -99,7 +99,7 @@ Rectangle {
                 model: editor.code.blocks
 
                 delegate: CodeBlockBar {
-                    editor: editor
+                    editor: root.editor
                     onLanguageRequested: (index, lang, anchor) => languageMenu.show(index, lang, anchor.mapToItem(root, 0, 0, anchor.width, anchor.height))
                 }
             }

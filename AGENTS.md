@@ -41,8 +41,9 @@ src/
   windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
+  imports/qs/                   stubs mínimos de qs.Common y qs.Widgets para probar panel/
   tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout,
-                                code, paste
+                                code, paste, editor_view
 ```
 
 Reglas:
@@ -105,6 +106,7 @@ flowchart LR
   - `Md.decorations` devuelve `codes: [{fence, lang, lines: [{start, end, pad}]}]`; los rellenos llevan `pad: true`. `CodeController.at(pos)` da la línea y los límites del contenido (`contentStart`, `contentEnd`), sin contar los rellenos.
   - El cursor nunca se queda en un relleno: `clampCursor` lo mueve al contenido (con `Qt.callLater`, porque `cursorPositionChanged` llega antes que `textChanged`). Flechas, Retroceso y Supr en los bordes del contenido los maneja `CodeController.handleKey`. Enter nunca sale del bloque; Ctrl+Enter llama a `exit`. Shift+Enter inserta un U+2028 que Qt guarda como salto real y descuadra las decoraciones, así que se reemplaza por `insertInCode("\n")`.
   - `CodeDecoration` (z 1) tapa el código de Qt con un fondo opaco y dibuja la selección y el texto coloreado (`StyledText`, `&nbsp;` para no colapsar espacios) con `font.family: "monospace"` y el mismo tamaño, que coincide píxel a píxel con la fuente de código de Qt. El cursor es un `cursorDelegate` propio con z 10 para verse encima.
+  - Los párrafos NBSP que añade `prepare` son necesarios: si se borran, el bloque se fusiona con el siguiente o se rompe. `CodeController.blankLine(pos)` indica si una línea NBSP pega con código (`before`, `after`) y si es imprescindible (`needed`). Retroceso sobre ella vuelve al final del bloque anterior (y la borra si sobra); Supr no borra una imprescindible; Enter crea la línea nueva con `BLANK + MARKER` para que el separador siga al final. Al salir con las flechas el cursor queda antes del NBSP, así que `tryEnterShortcut` trata una línea NBSP igual con el cursor a cualquier lado.
   - `CodeBlockBar` va en la línea de relleno superior: chip de lenguaje, copiar (`editor.code.copy`) y eliminar. `CodeLanguageMenu` vive en `EditorView` para no recortarse con el flickable.
   - Tras una lista, Qt duplica cada línea en blanco del código al serializar. `Code.repair` divide a la mitad las rachas de líneas en blanco de un bloque cuyo contenido anterior es un elemento de lista.
 - **Pegar (`pasteClipboard`):** Ctrl+V y Shift+Insert no usan el pegado de Qt, que mete fuentes, colores y bloques HTML que rompen código y tablas.
@@ -115,6 +117,7 @@ flowchart LR
   - Si el fragmento acaba en un bloque (fence, tabla, separador), el cursor va a un párrafo NBSP debajo o al inicio del texto que seguía: un marcador en la línea de cierre del fence la rompe.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
+- **Delegados con propiedades `required`:** `editor: editor` dentro del delegado se enlaza a la propia propiedad (queda `undefined`) y los clics fallan sin error visible en DMS. Usa `editor: root.editor`.
 - **MouseArea de fondo:** decláralo antes que los botones hermanos. Si va después, queda encima y les roba el clic aunque el botón tenga `z` alto dentro de su padre.
 - **Fuente monoespaciada:** el texto con esa fuente se guarda como `code`, así que la vista formateada usa una fuente proporcional.
 - **Separador al inicio:** un `---` al principio del documento añade un bloque vacío antes (`Md.decorations` lo contempla).
@@ -135,7 +138,8 @@ flowchart LR
 pnpm test
 ```
 
-- Usan `qmltestrunner -platform offscreen`. Los nuevos tests extienden `EditorTestCase`.
+- Usan `qmltestrunner -platform offscreen -import tests/imports`. Los nuevos tests extienden `EditorTestCase`.
+- `tst_editor_view.qml` carga el `EditorView` real con los stubs de `tests/imports/qs` y hace clic en los botones del bloque de código. `failOnWarning` convierte cualquier `TypeError` en fallo. Si un componente de `panel/` usa algo nuevo de `Theme` o de los widgets, añádelo al stub.
 - `type()` hace `wait(0)` después de cada tecla.
 - Para ver `console.log`, ejecuta con `QT_FORCE_STDERR_LOGGING=1`.
 - Todo bug nuevo necesita su test de regresión. `tst_tables_break.qml` reúne los casos que intentan romper las tablas.

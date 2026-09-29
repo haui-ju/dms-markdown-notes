@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
 import qs.Common
 import qs.Widgets
 import "../components"
@@ -74,6 +73,7 @@ Item {
 
         MouseArea {
             id: chipMouse
+            objectName: "codeLanguageChip"
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -89,6 +89,7 @@ Item {
         opacity: root.active ? 1 : 0
 
         IconButton {
+            objectName: "codeCopyButton"
             buttonSize: root.buttonSize
             iconSize: Theme.fontSizeSmall + 2
             iconName: root.copied ? "check" : "content_copy"
@@ -98,6 +99,7 @@ Item {
         }
 
         IconButton {
+            objectName: "codeDeleteButton"
             buttonSize: root.buttonSize
             iconSize: Theme.fontSizeSmall + 2
             iconName: "delete"

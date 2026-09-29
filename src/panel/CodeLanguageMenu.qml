@@ -31,6 +31,7 @@ Item {
         editor.forceActiveFocus();
     }
 
+    objectName: "codeLanguageMenu"
     anchors.fill: parent
     visible: open
     z: 30

@@ -171,6 +171,97 @@ Item {
             compare(block(), null);
         }
 
+        function leaveDown(source, word) {
+            stable(source);
+            subject.cursorPosition = subject.plain().indexOf(word) + word.length;
+            keyClick(Qt.Key_Down);
+            compare(block(), null);
+        }
+
+        function test_backspace_on_tail_separator_returns_to_code() {
+            leaveDown("```py\nuno\n```\n", "uno");
+            keyClick(Qt.Key_Backspace);
+            compare(subject.cursorPosition, subject.plain().indexOf("uno") + 3);
+            type("zz");
+            compare(subject.code.text(0), "unozz");
+            compare(subject.code.codes().length, 1);
+        }
+
+        function test_backspace_between_blocks_keeps_both() {
+            leaveDown("```py\nuno\n```\n\n```js\ndos\n```\n", "uno");
+            keyClick(Qt.Key_Backspace);
+            compare(subject.code.codes().length, 2);
+            compare(subject.code.text(0), "uno");
+            compare(subject.code.text(1), "dos");
+            verify(block() !== null);
+        }
+
+        function test_delete_on_separator_keeps_blocks() {
+            leaveDown("```py\nuno\n```\n\n```js\ndos\n```\n", "uno");
+            keyClick(Qt.Key_Delete);
+            compare(subject.code.codes().length, 2);
+            type("zz");
+            verify(/```\n+zz\n+```js\ndos/.test(md()), JSON.stringify(md()));
+            leaveDown("```py\nuno\n```\n", "uno");
+            keyClick(Qt.Key_Delete);
+            type("zz");
+            compare(subject.code.text(0), "uno");
+            verify(/```\n+zz$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_backspace_on_leading_separator_is_swallowed() {
+            stable("```py\nuno\n```\n\nfin\n");
+            subject.cursorPosition = subject.plain().indexOf("uno");
+            keyClick(Qt.Key_Up);
+            keyClick(Qt.Key_Backspace);
+            type("zz");
+            verify(/^zz\n+```py\nuno\n```/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_enter_on_tail_separator_adds_line() {
+            leaveDown("```py\nuno\n```\n", "uno");
+            keyClick(Qt.Key_Return);
+            type("zz");
+            verify(/```\n+\u00a0\n+zz$/.test(md()), JSON.stringify(md()));
+            compare(subject.code.text(0), "uno");
+        }
+
+        function test_enter_then_backspace_after_block_keeps_it() {
+            leaveDown("```py\nuno\n```\n", "uno");
+            keyClick(Qt.Key_Return);
+            keyClick(Qt.Key_Backspace);
+            compare(subject.code.codes().length, 1);
+            compare(block(), null);
+            type("zz");
+            compare(subject.code.text(0), "uno");
+            verify(/```\n+zz$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_enter_on_separator_between_blocks() {
+            leaveDown("```py\nuno\n```\n\n```js\ndos\n```\n", "uno");
+            keyClick(Qt.Key_Return);
+            type("zz");
+            compare(subject.code.codes().length, 2);
+            verify(/```\n+\u00a0\n+zz\n+```js/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_backspace_on_empty_line_after_block_removes_it() {
+            stable("```py\nuno\n```\n\n\u00a0\n\nfin\n");
+            subject.cursorPosition = subject.plain().indexOf("fin");
+            keyClick(Qt.Key_Up);
+            keyClick(Qt.Key_Backspace);
+            compare(subject.cursorPosition, subject.plain().indexOf("uno") + 3);
+            verify(/```\n+fin$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_delete_on_empty_line_joins_without_nbsp() {
+            stable("antes\n\n\u00a0\n\nfin\n");
+            subject.cursorPosition = subject.plain().indexOf("fin") - 1;
+            keyClick(Qt.Key_Delete);
+            compare(md(), "antes\n\nfin");
+            compare(subject.plain().indexOf("\u00a0"), -1);
+        }
+
         function test_cursor_never_rests_on_pad() {
             stable("antes\n\n```\nabc\n```\n\ndespues\n");
             const ctx = subject.code.at(subject.plain().indexOf("abc"));

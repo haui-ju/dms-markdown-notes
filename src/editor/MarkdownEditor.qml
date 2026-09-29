@@ -426,14 +426,19 @@ TextEdit {
 
     function tryEnterShortcut() {
         const block = currentBlock();
+        if (block.text === Md.BLANK)
+            cursorPosition = block.end;
         if (cursorPosition !== block.end)
             return false;
         if (/^(---|\*\*\*|___)$/.test(block.text))
             return rewriteLineAt(cursorPosition, (line, p) => p.list ? null : "---\n\n" + Md.MARKER);
         if (block.text === "```")
             return rewriteLineAt(cursorPosition, (line, p) => p.list ? null : "```\n" + Md.MARKER + "\n```");
-        if (block.text === "" || block.text === Md.BLANK)
-            return rewriteLineAt(cursorPosition, (line, p) => p.list || /^(#{1,6}\s|>)/.test(line) ? "\n" + Md.MARKER : Md.BLANK + "\n\n" + Md.MARKER);
+        if (block.text === "" || block.text === Md.BLANK) {
+            const blank = codeController.blankLine(cursorPosition);
+            const next = blank && blank.needed ? Md.BLANK + Md.MARKER : Md.MARKER;
+            return rewriteLineAt(cursorPosition, (line, p) => p.list || /^(#{1,6}\s|>)/.test(line) ? "\n" + Md.MARKER : Md.BLANK + "\n\n" + next);
+        }
         return rewriteLineAt(cursorPosition, line => /^#{1,6}\s/.test(line) ? line.replace(Md.MARKER, "") + "\n\n" + Md.MARKER : null);
     }
 
@@ -444,8 +449,38 @@ TextEdit {
         removeText(block.start, block.end);
     }
 
+    function tryDeleteShortcut() {
+        const blank = codeController.blankLine(cursorPosition);
+        if (!blank)
+            return false;
+        if (blank.needed || blank.last)
+            return true;
+        _loading = true;
+        if (blank.after)
+            remove(blank.start - 1, blank.end);
+        else
+            remove(blank.start, blank.end + 1);
+        _loading = false;
+        edited();
+        return true;
+    }
+
     function tryBackspaceShortcut() {
         const block = currentBlock();
+        const blank = codeController.blankLine(cursorPosition);
+        if (blank && blank.before) {
+            const target = blank.before.contentEnd;
+            if (!blank.needed) {
+                _loading = true;
+                remove(blank.start - 1, blank.end);
+                _loading = false;
+                edited();
+            }
+            cursorPosition = target;
+            return true;
+        }
+        if (blank && blank.needed)
+            return true;
         if (block.text === Md.BLANK) {
             _loading = true;
             if (block.start > 0)
@@ -695,6 +730,12 @@ TextEdit {
 
         if (event.key === Qt.Key_Backspace && !alt && collapsed) {
             if (!cell && tryBackspaceShortcut())
+                event.accepted = true;
+            return;
+        }
+
+        if (event.key === Qt.Key_Delete && !alt && collapsed) {
+            if (!cell && tryDeleteShortcut())
                 event.accepted = true;
             return;
         }

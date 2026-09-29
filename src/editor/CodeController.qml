@@ -49,6 +49,22 @@ QtObject {
         return null;
     }
 
+    function blankLine(pos) {
+        const block = editor.blockRange(pos);
+        if (block.text !== Md.BLANK)
+            return null;
+        const before = block.start > 0 ? at(block.start - 1) : null;
+        const after = block.end < editor.length ? at(block.end + 1) : null;
+        return {
+            start: block.start,
+            end: block.end,
+            before: before,
+            after: after,
+            last: block.end >= editor.length,
+            needed: (before !== null && (after !== null || block.end >= editor.length)) || (after !== null && block.start === 0)
+        };
+    }
+
     function containsSelection() {
         return at(editor.selectionStart) !== null || at(editor.selectionEnd) !== null;
     }
