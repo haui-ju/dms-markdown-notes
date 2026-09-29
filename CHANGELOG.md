@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+## [0.7.0] - 2026-09-29
+
 ### Añadido
 
 - Etiquetas `#etiqueta` (anidadas con `/`) y `tags:` del front matter. Se resaltan en la nota y un clic busca las notas que la usan.
@@ -92,6 +94,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 - Primera versión: panel lateral con pestañas, ventana flotante, formato Markdown mientras escribes, listas, checklists y guardado automático en `~/Notes`.
 
+[0.7.0]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.4.0...v0.4.1
