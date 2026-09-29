@@ -130,6 +130,28 @@ Item {
             compare(md(), "# T\n\n- [ ] a");
         }
 
+        function test_source_mode_roundtrip_keeps_blank_lines() {
+            editor.load("# T\n\nuno\n\n\u00a0\n\n\u00a0\n\ndos\n\n| A | B |\n| --- | --- |\n| 1 |  |\n\n\u00a0\n\nfin\n");
+            const before = md();
+            for (let i = 0; i < 3; i++) {
+                editor.setSourceMode(true);
+                compare(editor.markdown().replace(/\n+$/, ""), before);
+                editor.setSourceMode(false);
+                compare(md(), before);
+            }
+            compare(before.split("\n").filter(l => l === "\u00a0").length, 3);
+        }
+
+        function test_source_mode_edit_keeps_blank_lines_and_code_spaces() {
+            editor.load("uno\n\n\u00a0\n\ndos\n");
+            editor.setSourceMode(true);
+            editor.text = "uno\n\n \n\ndos\n\n```\n  \n```\n";
+            verify(editor.markdown().indexOf("\n\u00a0\n") > 0);
+            verify(editor.markdown().indexOf("```\n  \n```") > 0);
+            editor.setSourceMode(false);
+            compare(md().split("\n").filter(l => l === "\u00a0").length, 1);
+        }
+
         function test_enter_after_heading_starts_paragraph() {
             type("# Titulo\ntexto");
             compare(md(), "# Titulo\n\ntexto");

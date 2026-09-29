@@ -72,7 +72,7 @@ flowchart LR
   - Asigna el texto solo con `_assign(md)`. Esa función aplica `Tables.prepare` y resuelve el caso del texto vacío.
 - **Técnica del marcador:** `rewriteLineAt(pos, fn)` inserta `\uE000`, busca la línea serializada, la reescribe, reasigna el texto y quita el marcador.
   - Si `pos` está al inicio de un bloque no vacío, el marcador se inserta desplazado un carácter, porque `insert()` resetea el formato del bloque.
-- **Líneas en blanco:** se guardan como un párrafo con NBSP (`\u00A0`), porque Qt descarta los párrafos vacíos.
+- **Líneas en blanco:** se guardan como un párrafo con NBSP (`\u00A0`), porque Qt descarta los párrafos vacíos. En modo `PlainText` (vista Markdown), Qt devuelve ese NBSP como espacio normal. `Md.keepBlankLines` lo restaura al leer `text`, fuera de los bloques de código.
 - **Separadores en el texto plano** (`getText`):
   - U+2029 separa bloques.
   - U+FDD0 va antes de cada celda de tabla.

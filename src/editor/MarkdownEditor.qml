@@ -41,7 +41,7 @@ TextEdit {
         if (!sourceMode)
             _flattenCells();
         revision++;
-        markdownText = sourceMode ? text : Tables.repair(text, plain(), tableLayouts);
+        markdownText = sourceMode ? Md.keepBlankLines(text) : Tables.repair(text, plain(), tableLayouts);
         decorationTimer.restart();
         slashController.refresh();
         tableController.refresh();

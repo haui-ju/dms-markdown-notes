@@ -42,6 +42,15 @@ function blockRange(text, pos) {
     };
 }
 
+function keepBlankLines(md) {
+    let fence = false;
+    return md.split("\n").map(line => {
+        if (/^\s*```/.test(line))
+            fence = !fence;
+        return !fence && /^[ \u00A0]+$/.test(line) ? BLANK : line;
+    }).join("\n");
+}
+
 function escape(str) {
     return str.replace(/([\\`*_{}\[\]()#+\-.!|>~<])/g, "\\$1");
 }
