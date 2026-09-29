@@ -302,4 +302,43 @@ TestCase {
     function test_blocks_ignore_pipe_paragraphs() {
         compare(Md.blocks("| no es tabla\n").map(x => x.type), ["para"]);
     }
+
+    function test_unescape_code_spans_from_qt() {
+        compare(Md.unescapeCodeSpans("`\\# x` y `a\\\\b` `\\*q*` \\*fuera\\*"), "`# x` y `a\\b` `*q*` \\*fuera\\*");
+        compare(Md.unescapeCodeSpans("|`a\\\\b` `\\-` `x\\|y`|"), "|`a\\b` `-` `x\\|y`|");
+        compare(Md.unescapeCodeSpans("x `a\\|b`"), "x `a|b`");
+        compare(Md.unescapeCodeSpans("texto\n\n```\n`\\# x`\n```"), "texto\n\n```\n`\\# x`\n```");
+    }
+
+    function test_unescape_code_spans_with_backticks() {
+        compare(Md.unescapeCodeSpans("x (````\\```python````) y"), "x (```` ```python ````) y");
+        compare(Md.unescapeCodeSpans("(```` \\```python```` ) o"), "(```` ```python ````) o");
+        compare(Md.unescapeCodeSpans("``\\`a`` y"), "`` `a `` y");
+        compare(Md.unescapeCodeSpans("|`` \\`t```  , x|"), "|`` `t` `` , x|");
+        compare(Md.unescapeCodeSpans("|```` ```````  \\+ x|"), "|```` ``` ```` \\+ x|");
+        compare(Md.unescapeCodeSpans("``a`b`` y ` sin cerrar"), "``a`b`` y ` sin cerrar");
+    }
+
+    function test_unescape_code_spans_across_wrapped_lines() {
+        compare(Md.unescapeCodeSpans("uno `\\#\nx` dos"), "uno `#\nx` dos");
+    }
+
+    function test_repair_wrapping_moves_openers() {
+        compare(Md.repairWrapping("aaa **\nAbrir** b"), "aaa\n**Abrir** b");
+        compare(Md.repairWrapping("- a *\n  b* c"), "- a\n  *b* c");
+        compare(Md.repairWrapping("(reinicia `\ndms.service` si"), "(reinicia\n`dms.service` si");
+        compare(Md.repairWrapping("x ~~\ny~~"), "x\n~~y~~");
+    }
+
+    function test_repair_wrapping_joins_punctuation_after_closers() {
+        compare(Md.repairWrapping("en `x`\n, crea"), "en `x`, crea");
+        compare(Md.repairWrapping("(`# `, `- `\n, tablas)"), "(`# `, `- `, tablas)");
+        compare(Md.repairWrapping("**negrita**\n. Fin"), "**negrita**. Fin");
+    }
+
+    function test_repair_wrapping_leaves_the_rest() {
+        const same = ["(`# `, `- `\nsigue", "- *\n  x", "a \\*\nb", "```\na **\nb\n```", "texto,\nsigue", "| a **\n| b |", "a `x `\nsigue"];
+        for (const md of same)
+            compare(Md.repairWrapping(md), md);
+    }
 }

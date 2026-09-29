@@ -210,6 +210,84 @@ Item {
             paste();
             compare(md(), "hola");
         }
+
+        readonly property string readmeTable: "## Escritura\n\n| Escribes | Resultado |\n| --- | --- |\n| `# `, `## `, `### ` | Título |\n| `- ` o `* ` | Lista |\n| `1. ` | Numerada |\n| `---` + Enter | Separador |\n| ```` ``` ```` + Enter | Código |\n| `**texto**`, `*texto*`, `` `texto` ``, `~~texto~~` | Negrita |\n\n- uno\n- dos\n\n```js\nlet x = 1;\n```\n\nfin"
+
+        function settled() {
+            let saved = subject.markdown();
+            for (let i = 0; i < 3; i++) {
+                const plain = subject.plain();
+                subject.load(saved);
+                compare(subject.plain(), plain);
+                compare(subject.markdown().replace(/\s+/g, " "), saved.replace(/\s+/g, " "));
+                saved = subject.markdown();
+            }
+            return saved;
+        }
+
+        function toolbarInEveryCell() {
+            subject.refreshDecorations();
+            const plain = subject.plain();
+            let cells = 0;
+            for (let i = 0; i < plain.length; i++) {
+                if (plain.charCodeAt(i) !== 0xFDD0)
+                    continue;
+                cells++;
+                subject.cursorPosition = i + 1;
+                subject.table.refresh();
+                verify(subject.table.info !== null, "celda " + cells);
+            }
+            return cells;
+        }
+
+        function escapedCode(saved) {
+            const spans = saved.replace(/^```[\s\S]*?^```$/gm, "").match(/(`+)(?!`)[\s\S]*?[^`]\1(?!`)/g) || [];
+            return spans.filter(s => s.indexOf("\\") >= 0);
+        }
+
+        function checkReadmePaste() {
+            compare(toolbarInEveryCell(), 14);
+            const saved = settled();
+            compare(toolbarInEveryCell(), 14);
+            compare(escapedCode(saved), []);
+            verify(saved.indexOf("`# `") > 0);
+            verify(saved.indexOf("```` ``` ````") > 0, saved);
+            verify(saved.indexOf("`` `texto` ``") > 0, saved);
+            verify(saved.indexOf("```js\nlet x = 1;\n```") > 0);
+        }
+
+        function test_readme_table_pasted_as_text_is_stable_and_editable() {
+            subject.load("antes");
+            subject.cursorPosition = 5;
+            keyClick(Qt.Key_Return);
+            copyText(readmeTable);
+            paste();
+            checkReadmePaste();
+        }
+
+        function test_readme_table_pasted_from_code_editor_is_stable() {
+            subject.load("antes");
+            subject.cursorPosition = 5;
+            keyClick(Qt.Key_Return);
+            const lines = readmeTable.split("\n").map(l => "<div><span style=\"color:#abb2bf\">" + l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</span></div>");
+            copyHtml("<div style=\"font-family: monospace; white-space: pre;\">" + lines.join("") + "</div>");
+            paste();
+            checkReadmePaste();
+        }
+
+        function test_rendered_table_with_code_pasted_twice() {
+            subject.load("antes");
+            subject.cursorPosition = 5;
+            copyHtml("<table><tr><th>A</th><th>B</th></tr><tr><td><code># </code>, <code>*x*</code></td><td>y</td></tr></table><ul><li>uno</li></ul><p><img src=\"https://x.com/a.png\" alt=\"img\"></p>");
+            paste();
+            subject.cursorPosition = subject.length;
+            paste();
+            compare(toolbarInEveryCell(), 8);
+            const saved = settled();
+            compare(escapedCode(saved), []);
+            compare(saved.split("`# `").length, 3);
+            compare(saved.split("![img](https://x.com/a.png)").length, 3);
+        }
     }
 
     TestCase {

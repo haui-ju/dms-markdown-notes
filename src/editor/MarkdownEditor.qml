@@ -159,7 +159,7 @@ TextEdit {
             markdownText = Md.keepBlankLines(text);
         } else {
             const plainText = plain();
-            markdownText = _frontMatter + Links.unescape(Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText)));
+            markdownText = _frontMatter + Md.repairWrapping(Md.unescapeCodeSpans(Links.unescape(Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText)))));
         }
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
@@ -784,7 +784,7 @@ TextEdit {
                 return Paste.insertInline(lines, idx, shift ? Paste.cellStart(lines[idx], marker) : marker, text).join("\n");
             }, true);
         }
-        const frag = Paste.fragment(plainText, plainOnly ? "" : _clipboard(markdownClipboard), plainOnly);
+        const frag = Paste.fragment(plainText, plainOnly ? "" : Md.repairWrapping(Md.unescapeCodeSpans(_clipboard(markdownClipboard))), plainOnly);
         if (frag === "")
             return true;
         return rewriteAt(pos, (lines, found, shift) => {

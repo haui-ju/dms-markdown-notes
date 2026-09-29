@@ -192,6 +192,36 @@ Item {
             compare(md(), "- [ ] comprar pan");
         }
 
+        function roundtrips(source, times) {
+            let saved = source;
+            let plain = "";
+            for (let i = 0; i < times; i++) {
+                editor.load(saved);
+                if (i > 0)
+                    compare(editor.plain(), plain);
+                plain = editor.plain();
+                saved = md();
+            }
+            return saved;
+        }
+
+        function test_inline_code_does_not_grow_backslashes() {
+            const saved = roundtrips("usa `# `, `- [] `, `1. `, `**x**`, `C:\\dir\\` y `a|b`", 4);
+            compare(saved.replace(/\s+/g, " "), "usa `# `, `- [] `, `1. `, `**x**`, `C:\\dir\\` y `a|b`");
+        }
+
+        function test_long_paragraph_keeps_bold_and_code_at_wrap_points() {
+            const source = "`install.sh` enlaza el repo en `~/.config/DankMaterialShell/plugins/markdownNotes`, crea `~/Notes`, activa el plugin y añade el botón a la barra (reinicia `dms.service` si está corriendo). Pestañas, botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre \"Guardar como\"), **Abrir** (cualquier `.md`), **Nuevo** y fin.";
+            editor.load(source);
+            const plain = editor.plain();
+            verify(plain.indexOf("markdownNotes, crea") > 0);
+            verify(plain.indexOf("(reinicia dms.service si") > 0);
+            const saved = roundtrips(source, 4);
+            compare(editor.plain(), plain);
+            verify(saved.indexOf("\\") < 0, saved);
+            compare(saved.split("**").length, 7);
+        }
+
         function test_source_mode_roundtrip() {
             editor.load("# T\n\n- [ ] a\n");
             editor.setSourceMode(true);

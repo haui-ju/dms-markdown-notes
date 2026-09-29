@@ -209,7 +209,7 @@ function _escapeHtml(s) {
 function inlineHtml(text) {
     const saved = [];
     const keep = html => "\uE001" + (saved.push(html) - 1) + "\uE002";
-    let s = text.replace(/`([^`]+)`/g, (m, code) => keep("<code>" + _escapeHtml(code) + "</code>"));
+    let s = text.replace(/(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g, (m, fence, code) => keep("<code>" + _escapeHtml(/^ .*[^ ].* $/.test(code) ? code.slice(1, -1) : code) + "</code>"));
     s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|>~<])/g, (m, ch) => keep(_escapeHtml(ch)));
     s = _escapeHtml(s);
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, url) => "<a href=\"" + url + "\">" + label + "</a>");

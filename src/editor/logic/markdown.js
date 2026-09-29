@@ -354,6 +354,143 @@ function unpadTrailingRule(md) {
     return md.replace(/(\n[ \t]*(?:- - -|---+|\*\*\*+|___+)[ \t]*)\n+\u00A0\n*$/, "$1\n");
 }
 
+function _runAt(text, i) {
+    let n = 0;
+    while (text.charAt(i + n) === "`")
+        n++;
+    return n;
+}
+
+function _unescapeSpans(text, keepPipes) {
+    let out = "";
+    let i = 0;
+    while (i < text.length) {
+        const ch = text.charAt(i);
+        if (ch === "\\" && i + 1 < text.length) {
+            out += text.substr(i, 2);
+            i += 2;
+            continue;
+        }
+        if (ch !== "`") {
+            out += ch;
+            i++;
+            continue;
+        }
+        const n = _runAt(text, i);
+        const fence = text.substr(i, n);
+        const j = text.indexOf(fence, i + n);
+        if (j < 0) {
+            out += fence;
+            i += n;
+            continue;
+        }
+        const close = j + _runAt(text, j) - n;
+        const content = text.substring(i + n, close).replace(/\\([!-\/:-@\[-`{-~])/g, (m, c) => keepPipes && c === "|" ? m : c);
+        const misplacedPad = /^ `|`$/.test(content) && /^ .*[^ ]$/.test(content) && text.charAt(close + n) === " ";
+        out += fence + _padCode(content) + fence;
+        i = close + n + (misplacedPad ? 1 : 0);
+    }
+    return out;
+}
+
+function _padCode(content) {
+    if (!/^`|`$/.test(content.replace(/^ | $/g, "")) && !/^`|`$/.test(content))
+        return content;
+    const core = /^ .*[^ ].* $/.test(content) ? content.slice(1, -1) : content.replace(/^ /, "");
+    return " " + core + " ";
+}
+
+function _endsInOpenCode(text) {
+    let i = 0;
+    while (i < text.length) {
+        const ch = text.charAt(i);
+        if (ch === "\\") {
+            i += 2;
+            continue;
+        }
+        if (ch !== "`") {
+            i++;
+            continue;
+        }
+        const n = _runAt(text, i);
+        const j = text.indexOf("`".repeat(n), i + n);
+        if (j < 0)
+            return i + n === text.length;
+        i = j + _runAt(text, j);
+    }
+    return false;
+}
+
+function repairWrapping(md) {
+    if (!/[*_~`]\n/.test(md))
+        return md;
+    const lines = md.split("\n");
+    let fence = null;
+    let paraStart = 0;
+    for (let i = 0; i < lines.length - 1; i++) {
+        const f = lines[i].match(/^\s*(`{3,}|~{3,})/);
+        if (f) {
+            fence = fence === null ? f[1].charAt(0) : (f[1].charAt(0) === fence ? null : fence);
+            paraStart = i + 1;
+            continue;
+        }
+        if (fence !== null || /^\s*\|/.test(lines[i]) || lines[i].trim() === "") {
+            paraStart = i + 1;
+            continue;
+        }
+        const next = lines[i + 1].match(/^([ \t]*)(\S.*)$/);
+        if (!next || /^(`{3,}|~{3,})/.test(next[2]))
+            continue;
+        const openCode = /`$/.test(lines[i]) && _endsInOpenCode(lines.slice(paraStart, i + 1).join("\n"));
+        const opener = lines[i].match(/^(.*\S)[ \t]+(`+|\*\*|__|~~|\*|_)$/);
+        const isOpener = opener && (opener[2].charAt(0) !== "`" || openCode);
+        const closer = (/`$/.test(lines[i]) && !openCode) || /[^\s\\](\*\*|__|~~|\*|_)$/.test(lines[i]);
+        if (isOpener && !/^\s*([-*+]|\d+[.)]|>|#{1,6})$/.test(opener[1])) {
+            lines[i] = opener[1];
+            lines[i + 1] = next[1] + opener[2] + next[2];
+        } else if (closer && /^[,.;:!?)\]]/.test(next[2])) {
+            lines[i] += next[2];
+            lines.splice(i + 1, 1);
+            i--;
+        }
+    }
+    return lines.join("\n");
+}
+
+function unescapeCodeSpans(md) {
+    if (md.indexOf("`") < 0)
+        return md;
+    const out = [];
+    let para = [];
+    let fence = null;
+    const flush = () => {
+        if (para.length > 0)
+            out.push(..._unescapeSpans(para.join("\n"), false).split("\n"));
+        para = [];
+    };
+    for (const line of md.split("\n")) {
+        const f = line.match(/^\s*(`{3,}|~{3,})/);
+        if (fence !== null || f) {
+            flush();
+            if (f && fence === null)
+                fence = f[1];
+            else if (f && f[1].charAt(0) === fence.charAt(0) && f[1].length >= fence.length && line.trim() === f[1])
+                fence = null;
+            out.push(line);
+        } else if (/^\s*\|/.test(line)) {
+            flush();
+            out.push(_unescapeSpans(line, true));
+        } else if (line.trim() === "") {
+            flush();
+            out.push(line);
+        } else {
+            para.push(line);
+        }
+    }
+    flush();
+    return out.join("\n");
+}
+
 function plainParts(plain) {
     const parts = [];
     let start = 0;

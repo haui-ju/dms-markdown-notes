@@ -4,6 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+### Corregido
+
+- Las barras invertidas ya no se multiplican en el código en línea (`\#` → `\\\#`…) cada vez que se guarda, dentro y fuera de tablas.
+- El código en línea que empieza o termina con acento grave (```` ``` ````, `` `texto` ``) ya no se rompe al guardar.
+- La negrita, la cursiva, el tachado y el código ya no se rompen ni ganan espacios cuando el párrafo es largo y Qt lo corta en varias líneas.
+- Las tablas pegadas con código en las celdas (desde texto, un editor de código o una página) muestran sus botones en todas las celdas y se mantienen iguales al recargar.
+
 ## [0.6.0] - 2026-09-29
 
 ### Añadido
