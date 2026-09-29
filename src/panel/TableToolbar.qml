@@ -1,0 +1,41 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import qs.Common
+import "../components"
+import "../editor/logic/slash.js" as Slash
+
+PopupSurface {
+    id: root
+
+    required property var editor
+    readonly property var info: editor.table.info
+    readonly property real gap: Theme.spacingXS
+
+    visible: info !== null && !editor.sourceMode
+    width: actions.implicitWidth + Theme.spacingXS * 2
+    height: actions.implicitHeight + Theme.spacingXS * 2
+    x: editor.width - width
+    y: info ? (info.top >= height + gap ? info.top - height - gap : info.bottom + gap) : 0
+
+    Row {
+        id: actions
+        anchors.centerIn: parent
+        spacing: 2
+
+        Repeater {
+            model: Slash.TABLE
+
+            delegate: IconButton {
+                required property var modelData
+                buttonSize: 28
+                iconName: modelData.icon
+                iconColor: modelData.id === "tableRemove" ? Theme.error : Theme.surfaceText
+                tooltipText: modelData.label
+                onClicked: {
+                    root.editor.runCommand(modelData.id);
+                    root.editor.forceActiveFocus();
+                }
+            }
+        }
+    }
+}

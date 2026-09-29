@@ -40,6 +40,20 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 | Enter al final de un título | La línea siguiente es texto normal |
 | Retroceso al inicio de un título, cita o lista | Vuelve a texto normal |
 
+## Menú `/`
+
+Escribe `/` al inicio de una línea (o después de un espacio) para abrir el menú de bloques, como en Notion. Lo que escribas después filtra la lista sin importar tildes (`/tab`, `/titulo`, `/tareas`). Flechas para moverte, Enter o Tab para aplicar, Esc para cerrar.
+
+Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separador, Bloque de código y **Tabla**.
+
+## Tablas
+
+- `/tabla` crea una tabla de 3×3 (encabezado + 2 filas) con "Columna 1" seleccionado para que empieces a escribir.
+- **Tab** / **Shift+Tab**: celda siguiente / anterior. Tab en la última celda crea una fila.
+- **Enter**: celda de abajo; en la última fila sale de la tabla.
+- Con el cursor dentro aparece una barrita para añadir fila, añadir columna, eliminar fila, eliminar columna o eliminar la tabla. Las mismas opciones salen al escribir `/` dentro de una celda.
+- Se guardan como tablas Markdown normales (`| a | b |`). Las celdas vacías se guardan con un espacio duro (NBSP) para que Qt no las fusione.
+
 ## Atajos
 
 | Atajo | Acción |
@@ -63,9 +77,13 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 - La vista formateada usa la fuente normal del sistema, no la monoespaciada: Qt guarda el texto en fuente monoespaciada como `código`.
 - Qt normaliza el Markdown al guardar (por ejemplo `*` puede quedar como `-` y los párrafos largos se envuelven a ~80 columnas). El contenido no cambia.
 - Tras un autoformato no se puede deshacer con Ctrl+Z.
-- No hay menú `/`, bloques arrastrables ni edición visual de tablas (usa la vista Markdown).
+- El formato dentro del encabezado de una tabla (negrita, código...) no se guarda: Qt lo descarta al escribir el Markdown.
+- Las tablas no admiten celdas combinadas ni varias líneas por celda, y la alineación de columnas (`:---:`) se pierde.
+- No hay bloques arrastrables.
 
 ## Desarrollo
+
+Guía de arquitectura para agentes y colaboradores: [AGENTS.md](AGENTS.md).
 
 Requiere Qt 6 (`qmltestrunner`) para los tests del editor:
 

@@ -2,16 +2,24 @@
   "id": "markdownNotes",
   "name": "Markdown Notes",
   "description": "Notion-like Markdown notes slideout: headings, lists, clickable checklists and inline formatting while you type. Notes are plain .md files in ~/Notes.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "haui-ju",
   "icon": "edit_note",
   "type": "composite",
-  "capabilities": ["daemon", "dankbar-widget", "slideout"],
+  "capabilities": [
+    "daemon",
+    "dankbar-widget",
+    "slideout"
+  ],
   "components": {
-    "daemon": "./MarkdownNotesDaemon.qml",
-    "widget": "./MarkdownNotesWidget.qml"
+    "daemon": "./src/MarkdownNotesDaemon.qml",
+    "widget": "./src/MarkdownNotesWidget.qml"
   },
-  "settings": "./MarkdownNotesSettings.qml",
+  "settings": "./src/MarkdownNotesSettings.qml",
   "requires_dms": ">=1.6.0",
-  "permissions": ["settings_read", "settings_write", "process"]
+  "permissions": [
+    "settings_read",
+    "settings_write",
+    "process"
+  ]
 }

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Links this repo into DMS plugins, enables it and adds the bar widget.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

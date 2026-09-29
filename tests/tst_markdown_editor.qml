@@ -1,42 +1,20 @@
 import QtQuick
 import QtTest
-import "../"
+import "../src/editor"
 
 Item {
     width: 500
     height: 600
 
     MarkdownEditor {
-        id: editor
+        id: subject
         anchors.fill: parent
         focus: true
     }
 
-    TestCase {
+    EditorTestCase {
         name: "MarkdownEditor"
-        when: windowShown
-
-        function init() {
-            editor.setSourceMode(false);
-            editor.load("");
-            editor.forceActiveFocus();
-        }
-
-        function type(str) {
-            for (const ch of str) {
-                if (ch === " ")
-                    keyClick(Qt.Key_Space);
-                else if (ch === "\n")
-                    keyClick(Qt.Key_Return);
-                else
-                    keyClick(ch);
-                wait(0);
-            }
-        }
-
-        function md() {
-            return editor.markdown().replace(/\n+$/, "");
-        }
+        editor: subject
 
         function test_heading() {
             type("# Titulo");
@@ -237,6 +215,13 @@ Item {
         function test_bold_inside_list_item_keeps_list() {
             type("- **neg** fin");
             compare(md(), "- **neg** fin");
+        }
+
+        function test_empty_load_resets_heading_format() {
+            type("# Titulo");
+            editor.load("");
+            type("x");
+            compare(md(), "x");
         }
 
         function test_literal_hash_mid_line_untouched() {

@@ -4,6 +4,8 @@ import qs.Common
 import qs.Services
 import qs.Widgets
 import qs.Modules.Plugins
+import "windows"
+import "panel"
 
 PluginComponent {
     id: root

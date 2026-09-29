@@ -1,0 +1,120 @@
+# AGENTS.md
+
+Guía para agentes que modifiquen este repo. Léela entera antes de tocar el editor.
+
+## Qué es
+
+Plugin compuesto (`type: composite`) de [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) (Quickshell + Qt 6 QML). Añade un panel lateral y una ventana flotante de notas Markdown estilo Notion. Cada nota es un `.md` normal en `notesDir` (por defecto `~/Notes`).
+
+- Instalación local: `install.sh` enlaza el repo en `~/.config/DankMaterialShell/plugins/markdownNotes`.
+- IPC: `dms ipc call markdownNotes toggle|open|close|popout|dock|newNote`.
+
+## Estructura
+
+```
+plugin.json                     manifiesto DMS (rutas ./src/...)
+src/
+  MarkdownNotesDaemon.qml       punto de entrada: ventanas, NotesPanel único, IPC
+  MarkdownNotesWidget.qml       botón de la barra; pide toggle vía PluginGlobalVar
+  MarkdownNotesSettings.qml     ajustes: notesDir, panelWidth, side
+  store/NotesStore.qml          pestañas, archivos, sesión, recarga externa, renombrado
+  editor/                       SIN imports qs.* (testeable con qmltestrunner)
+    MarkdownEditor.qml          TextEdit MarkdownText + teclas + reescrituras
+    SlashController.qml         estado y teclas del menú "/"
+    TableController.qml         localizar celdas, operaciones y navegación de tablas
+    TaskDecoration.qml          casilla dibujada sobre la de Qt
+    RuleDecoration.qml          separador dibujado sobre el de Qt
+    logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
+    logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops de tablas
+    logic/slash.js              comandos del menú "/" y filtro sin tildes
+  panel/                        UI con componentes DMS (qs.Common, qs.Widgets)
+    NotesPanel.qml              compone todo; guardado, atajos, acciones
+    NoteTabs.qml  EditorView.qml  NoteFooter.qml  NoteMenu.qml
+    PathInfoPopup.qml  SlashMenu.qml  TableToolbar.qml  NoteFileDialogs.qml
+  components/                   piezas reutilizables (IconButton, PopupSurface, MenuRow,
+                                IconLabelButton, TitleBar)
+  windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
+tests/
+  EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
+  tst_*.qml                     logic, markdown_editor, slash, tables, tables_break
+```
+
+Reglas:
+- La lógica pura va en `editor/logic/*.js` (`.pragma library`, constantes exportadas con `var`).
+- Todo lo visual y repetido va en `components/`. No dupliques popups, filas de menú ni botones: reutiliza `PopupSurface`, `MenuRow`, `IconButton`.
+- `editor/` no puede importar `qs.*`, porque los tests corren fuera de DMS. Los colores llegan como propiedades desde `EditorView`.
+
+## Flujo
+
+```mermaid
+flowchart LR
+  widget[MarkdownNotesWidget] -->|PluginGlobalVar toggleRequest| daemon[MarkdownNotesDaemon]
+  ipc[IpcHandler markdownNotes] --> daemon
+  daemon --> slideout[MarkdownNotesSlideout]
+  daemon --> popout[MarkdownNotesPopout]
+  daemon --> panel[NotesPanel]
+  panel --> store[NotesStore]
+  panel --> view[EditorView]
+  view --> editor[MarkdownEditor]
+  editor --> slash[SlashController]
+  editor --> table[TableController]
+```
+
+- Hay un único `NotesPanel`. Su `parent` cambia entre el contenedor del panel lateral y el de la ventana flotante.
+- Al editar: `edited` inicia el temporizador de guardado (700 ms) y luego se llama a `store.save(editor.markdown())`.
+- `NotesStore` ignora el `fileChanged` que provocan sus propias escrituras durante 2 s.
+
+## Qt MarkdownText: reglas que no se pueden romper
+
+- **`text` en modo MarkdownText devuelve Markdown serializado por Qt.**
+  - Usa `editor.markdownText`, que es una caché ya reparada. No leas `text` directamente.
+  - Asigna el texto solo con `_assign(md)`. Esa función aplica `Tables.prepare` y resuelve el caso del texto vacío.
+- **Técnica del marcador:** `rewriteLineAt(pos, fn)` inserta `\uE000`, busca la línea serializada, la reescribe, reasigna el texto y quita el marcador.
+  - Si `pos` está al inicio de un bloque no vacío, el marcador se inserta desplazado un carácter, porque `insert()` resetea el formato del bloque.
+- **Líneas en blanco:** se guardan como un párrafo con NBSP (`\u00A0`), porque Qt descarta los párrafos vacíos. Las celdas vacías también se guardan con NBSP, porque Qt fusiona las celdas vacías con la anterior.
+- **Separadores en el texto plano** (`getText`):
+  - U+2029 separa bloques.
+  - U+FDD0 va antes de cada celda de tabla.
+  - U+FDD1 cierra la tabla.
+  - `Md.blockRange` corta en los tres.
+- **Tablas:** Qt escribe `|` sin escapar dentro de las celdas y descarta el formato del encabezado. `Tables.repair(md, plain)` reconstruye las celdas comparándolas con el texto plano. `Tables.prepare(md)` hace tres cosas antes de dárselo a Qt:
+  - rellena las celdas vacías con NBSP;
+  - evita tablas con solo encabezado;
+  - separa con un párrafo NBSP las tablas que van al inicio o después de un bloque de código, una cita u otra tabla.
+- **Fuente monoespaciada:** el texto con esa fuente se guarda como `code`, así que la vista formateada usa una fuente proporcional.
+- **Separador al inicio:** un `---` al principio del documento añade un bloque vacío antes (`Md.decorations` lo contempla).
+- **Asignar `""`** conserva el formato del cursor anterior (por ejemplo, la negrita de un título). `_assign` pone el marcador y lo borra.
+- **Orden de señales:** `cursorPositionChanged` puede llegar antes que `textChanged`. `TableController.model()` invalida su caché comparando también el texto plano.
+- **Teclas simuladas:** los atajos que se prueban tecla a tecla deben ser síncronos. `Qt.callLater` no llega a ejecutarse entre las teclas simuladas.
+
+## Convenciones
+
+- Sin comentarios en el código. Los nombres van en inglés y los textos visibles en español.
+- Usa los colores de `Theme` y los widgets de DMS (`StyledText`, `StyledRect`, `DankIcon`, `DankActionButton`, `DankTextField`).
+- Los iconos son Material Symbols. Comprueba que el nombre existe antes de usarlo.
+- Optimiza: `markdownText` se serializa una sola vez por cambio y los helpers puros evitan reparsear.
+
+## Tests
+
+```bash
+pnpm test
+```
+
+- Usan `qmltestrunner -platform offscreen`. Los nuevos tests extienden `EditorTestCase`.
+- `type()` hace `wait(0)` después de cada tecla.
+- Para ver `console.log`, ejecuta con `QT_FORCE_STDERR_LOGGING=1`.
+- Todo bug nuevo necesita su test de regresión. `tst_tables_break.qml` reúne los casos que intentan romper las tablas.
+
+## Verificar en vivo
+
+```bash
+systemctl --user restart dms.service
+journalctl --user -u dms.service --since -1min | rg -i "markdown|error"
+dms ipc call markdownNotes open
+dms screenshot full --no-clipboard -d /tmp --filename notas.png
+```
+
+## Commits
+
+- Conventional Commits validados por commitlint (husky `commit-msg`). Cada línea del cuerpo tiene como máximo 100 caracteres.
+- Rama `main`; remoto `haui-ju/dms-markdown-notes`.

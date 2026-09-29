@@ -2,8 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Open notes (tabs) over plain Markdown files: loading, saving, creating,
-// renaming, deleting and a persisted session of open tabs.
 Item {
     id: root
 
@@ -87,7 +85,6 @@ Item {
             switchTo(0);
     }
 
-    // Closing a tab keeps the file; empty auto-named notes never reach disk.
     function closeTab(index) {
         if (index < 0 || index >= tabs.length)
             return;
@@ -134,7 +131,6 @@ Item {
         _moveCurrent(folder + "/" + slug + ".md", false);
     }
 
-    // Saves the current note under a new path chosen by the user.
     function saveAs(path, content) {
         if (!path)
             return;
@@ -153,7 +149,6 @@ Item {
             Quickshell.execDetached(["rm", "-f", "--", old]);
     }
 
-    // Auto-named notes take the name of their first "# heading".
     function maybeRenameFromTitle(content) {
         const m = content.match(/^#\s+(.+)$/m);
         if (!m)
@@ -221,7 +216,6 @@ Item {
         watchChanges: true
         printErrors: false
 
-        // Our own atomic writes also fire fileChanged; only react to foreign edits.
         onFileChanged: {
             if (Date.now() - root.lastWriteAt < 2000)
                 return;

@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import qs.Common
 import qs.Services
 import qs.Widgets
+import "../components"
 
 PanelWindow {
     id: root
@@ -84,7 +85,6 @@ PanelWindow {
                 }
             }
 
-            // Ease without overshoot so the panel never bounces back into view.
             Behavior on offset {
                 NumberAnimation {
                     duration: 260
@@ -96,47 +96,30 @@ PanelWindow {
                 }
             }
 
-            Row {
+            TitleBar {
                 id: header
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.margins: Theme.spacingL
                 height: 32
+                title: "Notas"
 
-                StyledText {
-                    width: parent.width - buttons.width
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Notas"
-                    font.pixelSize: Theme.fontSizeLarge
-                    font.weight: Font.Medium
-                    color: Theme.surfaceText
+                IconButton {
+                    id: expandButton
+                    iconName: root.expanded ? "unfold_less" : "unfold_more"
+                    onClicked: root.expanded = !root.expanded
+
+                    transform: Rotation {
+                        angle: 90
+                        origin.x: expandButton.width / 2
+                        origin.y: expandButton.height / 2
+                    }
                 }
 
-                Row {
-                    id: buttons
-                    spacing: Theme.spacingXS
-
-                    DankActionButton {
-                        id: expandButton
-                        iconName: root.expanded ? "unfold_less" : "unfold_more"
-                        iconSize: Theme.iconSize - 4
-                        iconColor: Theme.surfaceText
-                        onClicked: root.expanded = !root.expanded
-
-                        transform: Rotation {
-                            angle: 90
-                            origin.x: expandButton.width / 2
-                            origin.y: expandButton.height / 2
-                        }
-                    }
-
-                    DankActionButton {
-                        iconName: "close"
-                        iconSize: Theme.iconSize - 4
-                        iconColor: Theme.surfaceText
-                        onClicked: root.hide()
-                    }
+                IconButton {
+                    iconName: "close"
+                    onClicked: root.hide()
                 }
             }
 
