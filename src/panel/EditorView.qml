@@ -45,7 +45,7 @@ Rectangle {
             focus: true
             color: Theme.surfaceText
             selectionColor: Theme.primary
-            selectedTextColor: Theme.background
+            selectionTextColor: Theme.background
             decorationBackground: Qt.tint(Theme.surfaceContainer, root.color)
             tableBorderColor: Qt.tint(decorationBackground, Theme.withAlpha(Theme.outline, 0.75))
             accentColor: Theme.primary

@@ -318,6 +318,21 @@ Item {
             verify(md().endsWith("Fin"), md());
         }
 
+        function test_tables_force_full_repaint() {
+            editor.selectionTextColor = "#101820";
+            editor.load(two);
+            editor.refreshDecorations();
+            const before = editor._repaintFlip;
+            editor.repaintTables();
+            verify(editor._repaintFlip !== before);
+            verify(Math.abs(editor.selectedTextColor.b - editor.selectionTextColor.b) <= 1.5 / 255);
+            editor.load("sin tablas");
+            editor.refreshDecorations();
+            const flip = editor._repaintFlip;
+            editor.repaintTables();
+            compare(editor._repaintFlip, flip);
+        }
+
         function test_geometry_cleared_in_source_mode() {
             editor.load(two);
             verify(geometry() !== undefined);

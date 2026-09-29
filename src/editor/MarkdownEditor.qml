@@ -14,6 +14,8 @@ TextEdit {
     property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
     property color tableBorderColor: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.3))
     property var tableLayouts: []
+    property color selectionTextColor: "#000000"
+    property bool _repaintFlip: false
     readonly property alias slash: slashController
     readonly property alias table: tableController
     property var _tasks: []
@@ -30,6 +32,7 @@ TextEdit {
     wrapMode: TextEdit.Wrap
     selectByMouse: true
     persistentSelection: true
+    selectedTextColor: Qt.rgba(selectionTextColor.r, selectionTextColor.g, selectionTextColor.b + (_repaintFlip ? (selectionTextColor.b > 0.5 ? -1 : 1) / 255 : 0), selectionTextColor.a)
     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
 
     onTextChanged: {
@@ -49,6 +52,8 @@ TextEdit {
         slashController.refresh();
         tableController.refresh();
     }
+    onSelectionStartChanged: repaintTimer.restart()
+    onSelectionEndChanged: repaintTimer.restart()
     onWidthChanged: decorationTimer.restart()
     onContentHeightChanged: decorationTimer.restart()
     onSourceModeChanged: decorationTimer.restart()
@@ -67,6 +72,12 @@ TextEdit {
         id: decorationTimer
         interval: 30
         onTriggered: root.refreshDecorations()
+    }
+
+    Timer {
+        id: repaintTimer
+        interval: 60
+        onTriggered: root.repaintTables()
     }
 
     Repeater {
@@ -89,6 +100,12 @@ TextEdit {
         _rules = d ? d.rules : [];
         tableController.refresh();
         tableController.measure();
+        repaintTimer.restart();
+    }
+
+    function repaintTables() {
+        if (!sourceMode && tableController.geometries.length > 0)
+            _repaintFlip = !_repaintFlip;
     }
 
     function decorations() {
