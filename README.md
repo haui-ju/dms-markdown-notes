@@ -22,7 +22,7 @@ Comandos IPC: `toggle`, `open`, `close`, `newNote`, `popout` (ventana flotante),
 
 ## Interfaz
 
-Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (ver Markdown, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
+Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña sin borrar el archivo, doble clic renombra, + crea), botón para ampliar/contraer el panel, **Guardar** (en notas sin nombre abre "Guardar como"), **Abrir** (cualquier `.md`), **Nuevo**, ventana flotante, menú `…` (buscar en las notas, ver Markdown, renombrar, abrir carpeta, mover a la papelera) y barra de estado con caracteres, líneas, estado de guardado y ruta del archivo (ⓘ). Las pestañas abiertas se recuerdan entre sesiones.
 
 ## Escritura
 
@@ -36,6 +36,7 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 | `---` + Enter | Separador |
 | ```` ``` ```` + Enter | Bloque de código |
 | `**texto**`, `*texto*`, `` `texto` ``, `~~texto~~` | Negrita, cursiva, código, tachado |
+| `[[Nota]]` | Enlace a otra nota (ver [Enlaces entre notas](#enlaces-entre-notas)) |
 | Enter en un elemento vacío | Termina la lista |
 | Enter al final de un título | La línea siguiente es texto normal |
 | Enter al final de una cita | Otro párrafo de la cita; Enter en uno vacío sale de ella |
@@ -49,7 +50,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 
 ## Tablas
 
-- `/tabla` crea una tabla de 3×3 (encabezado + 2 filas) con "Columna 1" seleccionado para que empieces a escribir.
+- `/tabla` crea una tabla de 3×3 (encabezado + 2 filas) con alto de fila amplio y "Columna 1" seleccionado para que empieces a escribir.
 - **Tab** / **Shift+Tab**: celda siguiente / anterior. Tab en la última celda crea una fila.
 - **Enter**: celda de abajo; en la última fila sale de la tabla.
 - Con el cursor dentro aparece una barrita para añadir o eliminar filas y columnas, poner la tabla a ancho completo, igualar columnas, cambiar el alto de filas (compacto, normal o amplio) o eliminar la tabla. Las mismas opciones salen al escribir `/` dentro de una celda.
@@ -80,6 +81,21 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Al renombrar la nota, guardarla con otro nombre o borrarla, la carpeta de imágenes la acompaña y los enlaces se actualizan.
 - También se muestran imágenes con ruta absoluta o URL (`https://...`), pero no se copian a la carpeta.
 
+## Enlaces entre notas
+
+- Escribe `[[Nombre de la nota]]` (sin `.md`). También vale `[[Nota|texto]]`, `[[Nota#sección]]` (abre la nota) y `[[carpeta/Nota]]`, como en Obsidian.
+- El enlace se resalta y el cursor cambia a una mano al pasar por encima. **Clic** abre la nota en una pestaña; para editar el enlace, pon el cursor con el teclado o haz clic justo después de `]]`.
+- Se busca por nombre en toda la carpeta de notas, sin distinguir mayúsculas; si hay varias con ese nombre gana la de la misma carpeta que la nota actual y luego la menos profunda.
+- Si no existe, se crea en la carpeta de notas con `# Nombre` como título.
+- En el archivo queda tal cual (`[[Nota]]`), así que otros editores como Obsidian lo entienden.
+
+## Buscar
+
+- **Ctrl+Shift+F** (o menú `…` → Buscar en las notas) abre un buscador de texto en todos los `.md` de la carpeta de notas, subcarpetas incluidas.
+- Busca el texto literal sin distinguir mayúsculas, a partir de 2 letras. Muestra la nota, su carpeta y la línea con la coincidencia resaltada (hasta 100 resultados, 20 por nota).
+- Flechas para moverte, Enter o clic para abrir: la nota se abre con la coincidencia seleccionada. Esc cierra.
+- Se ignoran carpetas ocultas (`.git`, `.trash`...). La nota actual se guarda antes de buscar.
+
 ## Pegar
 
 - Desde una web o un documento se conservan los títulos, listas, negritas, enlaces, tablas y código, pero no las fuentes, colores ni tamaños.
@@ -100,6 +116,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 | Ctrl+L | Convertir en checkbox (o quitarlo) |
 | Ctrl+Shift+L / Ctrl+Shift+O | Lista con viñetas / numerada |
 | Ctrl+Shift+M | Alternar vista formateada / Markdown crudo |
+| Ctrl+Shift+F | Buscar en todas las notas |
 | Ctrl+Z / Ctrl+Y (o Ctrl+Shift+Z) | Deshacer / rehacer |
 | Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+W / Esc | Nueva / abrir / guardar / cerrar pestaña / cerrar panel |
 
@@ -130,7 +147,9 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Pegar una imagen requiere el historial del portapapeles de DMS (`dms clipboard`).
 - No hay bloques arrastrables.
 - El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio. El alto de línea depende de la fuente: Noto Sans da unos 20 px a 14 px frente a los 17 de Inter.
-- Un título dentro de una cita (`> # título`) sale de la cita al guardar, y un separador en la última línea de la nota se pierde: Qt no los escribe.
+- Un título dentro de una cita (`> # título`) sale de la cita al guardar: Qt no lo escribe.
+- Un `|` dentro de un enlace `[[Nota|texto]]` en una celda de tabla corta la celda. En tablas usa `[[Nota]]`.
+- La búsqueda usa `grep` y lee los archivos del disco: no encuentra notas con otra extensión que `.md`.
 - Qt lee `__texto__` igual que `_texto_` y lo guarda así; en el editor se ve igual, pero otros visores lo mostrarán en cursiva en vez de negrita. Usa `**texto**` para negrita.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.

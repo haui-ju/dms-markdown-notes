@@ -16,9 +16,12 @@ plugin.json                     manifiesto DMS (rutas ./src/...)
 src/
   MarkdownNotesDaemon.qml       punto de entrada: ventanas, NotesPanel único, IPC
   MarkdownNotesWidget.qml       botón de la barra; pide toggle vía PluginGlobalVar
-  MarkdownNotesSettings.qml     ajustes: notesDir, panelWidth, side
+  MarkdownNotesSettings.qml     ajustes: notesDir, noteFont, panelWidth, side
   store/NotesStore.qml          pestañas, archivos, sesión, recarga externa, renombrado
   store/NoteAssets.qml          guarda imágenes (portapapeles o archivos) en la carpeta de la nota
+  store/NoteSearch.qml          grep en la carpeta de notas con debounce; relanza si cambió la búsqueda
+  store/NoteLinks.qml           resuelve un [[enlace]] con find o crea la nota
+  store/search.js               funciones puras: comando grep, parse, resaltado, ocurrencia a seleccionar
   editor/                       SIN imports qs.* (testeable con qmltestrunner)
     MarkdownEditor.qml          TextEdit MarkdownText + teclas + reescrituras
     SlashController.qml         estado y teclas del menú "/"
@@ -28,6 +31,7 @@ src/
     TaskDecoration.qml          casilla dibujada sobre la de Qt
     RuleDecoration.qml          separador dibujado sobre el de Qt
     QuoteDecoration.qml         barra y fondo de las citas, detrás del texto
+    WikiLinkDecoration.qml      fondo y subrayado de los [[enlaces]], detrás del texto
     ImageDecoration.qml         imagen real (o aviso) sobre el hueco que reserva Qt; clic = visor
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
@@ -35,11 +39,13 @@ src/
     logic/paste.js              funciones puras: normalizar y convertir lo pegado a Markdown
     logic/slash.js              comandos del menú "/" y filtro sin tildes
     logic/images.js             funciones puras: find/prepare/repair de imágenes, rutas, tamaños
+    logic/links.js              funciones puras: [[enlaces]], unescape, rutas seguras, elegir destino
   panel/                        UI con componentes DMS (qs.Common, qs.Widgets)
     NotesPanel.qml              compone todo; guardado, atajos, acciones
     NoteTabs.qml  EditorView.qml  NoteFooter.qml  NoteMenu.qml
     PathInfoPopup.qml  SlashMenu.qml  TableToolbar.qml  TableResizeHandles.qml
     CodeBlockBar.qml  CodeLanguageMenu.qml  NoteFileDialogs.qml  ImageViewerModal.qml
+    SearchPopup.qml             buscador en todas las notas (DankTextField + resultados)
   components/                   piezas reutilizables (IconButton, PopupSurface, MenuRow,
                                 IconLabelButton, TitleBar)
   windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
@@ -49,8 +55,10 @@ CHANGELOG.md                    cambios por versión
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
   imports/qs/                   stubs mínimos de qs.Common y qs.Widgets para probar panel/
+  imports/Quickshell/Io/        stub de Process (finish(code, salida) simula el fin) y Processes.last
   tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout, history,
-                                code, paste, editor_view, images, frontmatter
+                                code, paste, editor_view, images, frontmatter, search, search_editor,
+                                search_popup, links, links_editor, note_links
 ```
 
 Reglas:
@@ -141,11 +149,15 @@ flowchart LR
 - **Título vacío al serializar:** Qt escribe un título vacío como `# ` sin salto de línea, pegado al bloque siguiente (`# fin`, `## - item`), y al recargar ese bloque se vuelve título. `Md.repairEmptyHeadings(md, plain)` alinea los bloques Markdown con el texto plano como `decorations`, y cuando un título está vacío en el texto plano y su contenido coincide con el bloque siguiente, lo separa y lo guarda como `# ` + NBSP. Al escribir en ese título (`_typeIntoBlankHeading`, se detecta por la altura de la línea) el NBSP se sustituye por la letra con una reescritura, para que tenga formato de título.
 - **Alineación Markdown ↔ texto plano** (`Md.decorations`, `repairEmptyHeadings`): si falla, `decorations` devuelve `null` y no hay bloques de código, casillas ni separadores dibujados. En el texto plano una imagen es U+FFFC (`norm` lo quita) y el cierre de una tabla (U+FDD1) deja un bloque vacío que no corresponde a nada (se salta). Cualquier bloque nuevo de Qt que aparezca en el texto plano debe tener su equivalente aquí.
 - **Separador + código:** Qt no escribe un separador seguido directamente de un fence. `Code.prepare` pone un párrafo NBSP entre ambos y `blankLine` lo marca como `needed` (`_afterRule`).
-- **Front matter:** Qt 6.11 reconoce el YAML inicial (`---`…`---`), lo oculta y lo devuelve en `text`. No hay que hacer nada, pero no rompas esa primera línea `---` (no es un separador).
+- **Front matter:** Qt 6.11 guarda el YAML inicial como metadato del documento y lo arrastra al siguiente `setText` (ni `clear()` ni cambiar de formato lo limpian), así que una nota heredaba el de la anterior. Qt no lo recibe nunca: `_assign` lo separa con `Md.splitFrontMatter` (primera línea `---`, cierre `---` o `...`), lo guarda en `_frontMatter` y `onTextChanged` lo antepone a `markdownText`. `decorations()` trabaja sobre `markdownText` sin ese prefijo. En la vista Markdown va dentro del texto.
+- **Separador al final:** el escritor de Qt no escribe un `---` que sea el último bloque. `Md.padTrailingRule` añade una línea NBSP detrás al cargar y `Md.unpadTrailingRule` la quita al guardar. Retroceso en esa línea borra el separador (`blankLine().afterRule`).
 - **Interlineado:** `TextEdit` no tiene `lineHeight` ni margen de párrafo en QML, el importador Markdown no aplica márgenes a los párrafos y un `<p style="line-height">` crea o fusiona bloques. Probado también `<h1 style="margin-top">`, `<div>` alrededor y `&nbsp;` delante: el bloque HTML se funde con el párrafo anterior y el título se guarda como negrita. Solo los marcos (tablas) respetan márgenes. Un fragmento con `line-height` insertado al inicio de un bloque solo se aplica en la posición 0, y reconvertir todo el documento vía `toHtml` pierde front matter, citas y fences. `font.preferTypoLineMetrics` no cambia nada con Inter. No hay forma fiable sin C++; la única palanca es la fuente (ajuste `noteFont`, `EditorView.fontFamily`, con vuelta a `SettingsData.fontFamily` si no está en `Qt.fontFamilies()`).
 - **Separación de bloques (`blockGap`, media línea):** la `<table>` lleva `margin-top`/`margin-bottom` (Qt sí los respeta) y el placeholder de cada imagen es `2 × blockGap` más alto; `_measureImages` dibuja la imagen `blockGap` por debajo del inicio de la línea, que en Qt mide exactamente lo que el placeholder.
 - **Citas:** Qt las sangra 40 px sin ninguna marca. `Md.blocks` marca los párrafos con `quote` y `group` (un `>` vacío no corta el grupo, una línea en blanco sí; una línea sin `>` tras una cita la continúa) y quita de su texto los prefijos de lista y título. `decorations().quotes` da `{start, end}` por grupo y `QuoteDecoration` (z −1, detrás del texto) dibuja fondo y barra.
-- **Cita vacía:** Qt no escribe nada para un bloque de cita vacío, así que se perdería al guardar y no se podría dibujar. Una cita vacía siempre es `> ` + NBSP: `_quoteLine` al crearla (`> `, `/cita`, `setBlockType`), `_blankQuote` al borrar su último carácter (Retroceso, Supr o selección completa) y Enter al final de una cita escribe `>` + `> ` NBSP. Escribir en ella quita el NBSP (`clearBlankLine`) y el formato de cita sigue, porque vive en el bloque y no en los caracteres. Retroceso en una cita vacía la convierte en línea en blanco; Enter sale de ella.
+- **Cita vacía:** Qt no escribe nada para un bloque de cita vacío, así que se perdería al guardar y no se podría dibujar. Una cita vacía siempre es `> ` + NBSP: `_quoteLine` al crearla (`> `, `/cita`, `setBlockType`), `_blankQuote` al borrar su último carácter (Retroceso, Supr o selección completa) y Enter al final de una cita escribe `>` + `> ` NBSP. Escribir en ella quita el NBSP (`clearBlankLine`) y el formato de cita sigue, porque vive en el bloque y no en los caracteres. Retroceso en una cita vacía la convierte en línea en blanco; Enter sale de ella. Con todo el texto de una cita seleccionado, Retroceso, Supr y Ctrl+X (`_cutQuoteSelection`, copia y vacía) también la dejan vacía.
+- **Tablas nuevas:** `TableController.insert()` escribe el comentario de layout con `Tables.NEW_TABLE_DENSITY` ("amplio") encima de la tabla.
+- **Enlaces `[[...]]`:** son texto normal para Qt, que al guardar escribe `\[[Nota]]`; `Links.unescape` lo deshace fuera de los fences. No se usan enlaces de Qt: el formato de ancla se extendería a lo que se escribe detrás y no se actualizaría al editar. `refreshDecorations` calcula `_links` con `Links.parse(plain())` (sin los que caen en código) y `WikiLinkDecoration` (z −1) dibuja fondo y subrayado. En `EditorView`, un `TapHandler` sin modificadores llama a `activateWikiLinkAt` y un `HoverHandler` pone la mano. `NoteLinks` busca con `find -iname` y elige con `Links.pick` (misma carpeta, luego menos profundo, sin carpetas ocultas); si no hay, crea la nota con `sh` (`mkdir -p`, nunca sobrescribe). `Links.safeTarget` quita `.` y `..`.
+- **Búsqueda:** `NoteSearch` lanza `grep -rinIF --include=*.md -m 20` con 180 ms de debounce. Si llega otra búsqueda con el proceso en marcha, marca `_again` y relanza al terminar; nunca aplica resultados de una consulta vieja (`resultsQuery`). Al abrir un resultado, `NotesPanel.applyMatch` convierte la línea del archivo en la k-ésima ocurrencia (`Search.occurrence`, sin contar el front matter) y la busca en `plain()` (`Search.find`, con vuelta a la primera). En la vista Markdown usa `Search.lineOffset`.
 - **Vista Markdown:** al pasar de `MarkdownText` a `PlainText`, Qt convierte el documento aplicando a todo el formato de carácter del cursor (título, código). `setSourceMode(true)` asigna antes un documento de un carácter y mueve el cursor para que el formato sea el normal.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.

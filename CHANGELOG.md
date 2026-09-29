@@ -4,8 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+## [0.6.0] - 2026-09-29
+
 ### Añadido
 
+- Búsqueda de texto en todas las notas (Ctrl+Shift+F o menú `…`): al elegir un resultado se abre la nota con la coincidencia seleccionada.
+- Enlaces entre notas con `[[Nota]]`, `[[Nota|texto]]` o `[[carpeta/Nota]]`: se resaltan y un clic abre la nota, o la crea si no existe.
+- Las tablas nuevas usan el alto de fila amplio.
 - Las citas se ven con una barra de color y un fondo suave, también cuando están vacías.
 - Enter al final de una cita añade otro párrafo a la cita; Enter en uno vacío sale de ella.
 - Más espacio encima y debajo de tablas e imágenes.
@@ -15,7 +20,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 - Una cita vacía (recién creada o tras borrar su texto) desaparecía al guardar.
 - La vista Markdown sin formato mostraba todo el texto con el tamaño de un título (o en fuente de código) según dónde estaba el cursor al cambiar de vista.
-
+- Un separador en la última línea de la nota desaparecía al guardar.
+- Las propiedades YAML de una nota pasaban a la siguiente nota abierta, y en una nota con propiedades no funcionaban las casillas, citas ni bloques de código.
+- Ctrl+X sobre todo el texto de una cita borraba la cita en vez de dejarla vacía.
 - Los bloques de código no funcionaban (sin fondo, botones ni teclas propias) en notas con una tabla, una imagen o un separador antes del bloque.
 - Un separador justo encima de un bloque de código desaparecía al guardar.
 
@@ -68,6 +75,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 - Primera versión: panel lateral con pestañas, ventana flotante, formato Markdown mientras escribes, listas, checklists y guardado automático en `~/Notes`.
 
+[0.6.0]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/haui-ju/dms-markdown-notes/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/haui-ju/dms-markdown-notes/releases/tag/v0.4.0
