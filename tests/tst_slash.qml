@@ -123,7 +123,7 @@ Item {
 
         function test_code_command() {
             type("/codigo\nx = 1");
-            verify(/^```\s*\nx = 1\n```$/.test(md()), md());
+            verify(/^\u00a0\n\n```\s*\nx = 1\n```\n\u00a0$/.test(md()), JSON.stringify(md()));
         }
 
         function test_click_elsewhere_closes() {

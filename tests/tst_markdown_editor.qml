@@ -149,7 +149,8 @@ Item {
             verify(editor.markdown().indexOf("\n\u00a0\n") > 0);
             verify(editor.markdown().indexOf("```\n  \n```") > 0);
             editor.setSourceMode(false);
-            compare(md().split("\n").filter(l => l === "\u00a0").length, 1);
+            compare(md().split("\n").filter(l => l === "\u00a0").length, 2);
+            verify(/```\n  \n```\n\u00a0$/.test(md()), JSON.stringify(md()));
         }
 
         function test_enter_after_heading_starts_paragraph() {
@@ -231,7 +232,7 @@ Item {
 
         function test_code_fence() {
             type("```\nx = 1");
-            verify(/^```\s*\nx = 1\n```$/.test(md()), md());
+            verify(/^\u00a0\n\n```\s*\nx = 1\n```\n\u00a0$/.test(md()), JSON.stringify(md()));
         }
 
         function test_bold_inside_list_item_keeps_list() {

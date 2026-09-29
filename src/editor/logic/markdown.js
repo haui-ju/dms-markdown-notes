@@ -1,5 +1,6 @@
 .pragma library
 .import "tables.js" as Tables
+.import "code.js" as Code
 
 var MARKER = "\uE000";
 var BLANK = "\u00A0";
@@ -127,21 +128,24 @@ function blocks(md) {
     for (const range of Tables.find(lines))
         for (let i = range.start; i < range.end; i++)
             tableLines.add(i);
+    const fences = Code.fences(lines);
     const out = [];
-    let fence = false;
     let para = null;
+    let code = 0;
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
-        if (/^\s*```/.test(line)) {
-            fence = !fence;
+        const f = fences[code];
+        if (f && index >= f.start && index <= f.end) {
             para = null;
-            continue;
-        }
-        if (fence) {
             out.push({
                 type: "code",
-                text: line
+                pad: index === f.start || index === f.end,
+                fence: code,
+                lang: f.lang,
+                text: index === f.start || index === f.end ? "" : line
             });
+            if (index === f.end)
+                code++;
             continue;
         }
         if (Tables.isLayoutLine(line)) {
@@ -209,13 +213,41 @@ function decorations(md, plain) {
     const list = blocks(md);
     const tasks = [];
     const rules = [];
+    const codes = [];
+    const addCode = (b, from, to) => {
+        let c = codes[codes.length - 1];
+        if (!c || c.fence !== b.fence) {
+            c = {
+                fence: b.fence,
+                lang: b.lang,
+                lines: []
+            };
+            codes.push(c);
+        }
+        c.lines.push({
+            start: from,
+            end: to,
+            pad: b.pad === true
+        });
+    };
     let j = 0;
     let start = 0;
     for (let i = 0; i <= plain.length; i++) {
         if (i < plain.length && !isBoundary(plain.charCodeAt(i)))
             continue;
         const text = plain.substring(start, i);
+        while (list[j] && list[j].pad && text !== "")
+            j++;
         const b = list[j];
+        if (b && b.type === "code") {
+            if (b.pad || norm(b.text) === norm(text)) {
+                addCode(b, start, i);
+                j++;
+                start = i + 1;
+                continue;
+            }
+            return null;
+        }
         if (b && b.type === "rule" && start === 0 && plain.charCodeAt(0) === PARAGRAPH && plain.charCodeAt(1) === PARAGRAPH) {
             start = i + 1;
             continue;
@@ -238,6 +270,7 @@ function decorations(md, plain) {
     }
     return {
         tasks: tasks,
-        rules: rules
+        rules: rules,
+        codes: codes
     };
 }

@@ -10,6 +10,10 @@ Rectangle {
 
     signal edited
 
+    function syntax(hue) {
+        return Qt.tint(hue, Theme.withAlpha(Theme.primary, 0.12));
+    }
+
     radius: Theme.cornerRadius
     color: Theme.withAlpha(Theme.surfaceText, 0.03)
     border.width: 1
@@ -29,6 +33,8 @@ Rectangle {
 
         anchors.fill: parent
         anchors.margins: Theme.spacingM
+        anchors.leftMargin: Theme.spacingM - editor.leftPadding
+        anchors.rightMargin: Theme.spacingM - editor.rightPadding
         contentWidth: width
         contentHeight: editor.contentHeight + Theme.spacingL
         clip: true
@@ -45,6 +51,17 @@ Rectangle {
             tableBorderColor: Qt.tint(decorationBackground, Theme.withAlpha(Theme.outline, 0.75))
             accentColor: Theme.primary
             checkMarkColor: Theme.background
+            leftPadding: Theme.spacingS
+            rightPadding: Theme.spacingS
+            codeBackground: Qt.tint(decorationBackground, Theme.withAlpha(Theme.surfaceText, 0.05))
+            codeColors: ({
+                    keyword: root.syntax("#c792ea"),
+                    string: root.syntax("#e5c07b"),
+                    comment: Theme.outline,
+                    number: root.syntax("#f78c6c"),
+                    type: root.syntax("#56b6c2"),
+                    function: root.syntax("#61afef")
+                })
             font.family: sourceMode ? SettingsData.monoFontFamily : SettingsData.fontFamily
             font.pixelSize: (SettingsData.notepadFontSize || 14) * (SettingsData.fontScale || 1)
             onCursorRectangleChanged: flick.ensureVisible(cursorRectangle)
@@ -62,6 +79,7 @@ Rectangle {
             }
 
             StyledText {
+                x: editor.leftPadding
                 visible: editor.length === 0 && !editor.sourceMode
                 text: "Escribe… o / para insertar bloques"
                 color: Theme.surfaceVariantText
@@ -76,7 +94,21 @@ Rectangle {
             TableToolbar {
                 editor: editor
             }
+
+            Repeater {
+                model: editor.code.blocks
+
+                delegate: CodeBlockBar {
+                    editor: editor
+                    onLanguageRequested: (index, lang, anchor) => languageMenu.show(index, lang, anchor.mapToItem(root, 0, 0, anchor.width, anchor.height))
+                }
+            }
         }
+    }
+
+    CodeLanguageMenu {
+        id: languageMenu
+        editor: editor
     }
 
     SlashMenu {

@@ -1,6 +1,7 @@
 import QtQuick
 import "logic/markdown.js" as Md
 import "logic/tables.js" as Tables
+import "logic/code.js" as Code
 
 TextEdit {
     id: root
@@ -16,8 +17,21 @@ TextEdit {
     property var tableLayouts: []
     property color selectionTextColor: "#000000"
     property bool _repaintFlip: false
+    property color codeBackground: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.06))
+    property var codeColors: ({
+            keyword: "#c678dd",
+            string: "#98c379",
+            comment: "#7f848e",
+            number: "#d19a66",
+            type: "#e5c07b",
+            function: "#61afef"
+        })
+    readonly property string codeFontFamily: "monospace"
     readonly property alias slash: slashController
     readonly property alias table: tableController
+    readonly property alias code: codeController
+    property var _decorations: null
+    property string _decorationsKey: ""
     property var _tasks: []
     property var _rules: []
     property int _plainAfterFormatPos: -1
@@ -34,6 +48,30 @@ TextEdit {
     persistentSelection: true
     selectedTextColor: Qt.rgba(selectionTextColor.r, selectionTextColor.g, selectionTextColor.b + (_repaintFlip ? (selectionTextColor.b > 0.5 ? -1 : 1) / 255 : 0), selectionTextColor.a)
     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+    tabStopDistance: Math.max(1, monoMetrics.advanceWidth)
+    cursorDelegate: Rectangle {
+        z: 10
+        width: 2
+        color: root.color
+        visible: root.activeFocus && root._caretOn
+    }
+
+    property bool _caretOn: true
+
+    TextMetrics {
+        id: monoMetrics
+        font.family: root.codeFontFamily
+        font.pixelSize: root.font.pixelSize
+        text: " ".repeat(Code.TAB_SIZE)
+    }
+
+    Timer {
+        id: caretTimer
+        interval: 530
+        repeat: true
+        running: root.activeFocus
+        onTriggered: root._caretOn = !root._caretOn
+    }
 
     onTextChanged: {
         if (_flattening)
@@ -41,14 +79,20 @@ TextEdit {
         if (!sourceMode)
             _flattenCells();
         revision++;
-        markdownText = sourceMode ? Md.keepBlankLines(text) : Tables.repair(text, plain(), tableLayouts);
+        markdownText = sourceMode ? Md.keepBlankLines(text) : Code.repair(Tables.repair(text, plain(), tableLayouts));
         decorationTimer.restart();
+        if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
+            codeController.measure();
         slashController.refresh();
         tableController.refresh();
         if (!_loading)
             edited();
     }
     onCursorPositionChanged: {
+        _caretOn = true;
+        caretTimer.restart();
+        if (!_loading)
+            Qt.callLater(codeController.clampCursor);
         slashController.refresh();
         tableController.refresh();
     }
@@ -65,6 +109,11 @@ TextEdit {
 
     TableController {
         id: tableController
+        editor: root
+    }
+
+    CodeController {
+        id: codeController
         editor: root
     }
 
@@ -94,12 +143,20 @@ TextEdit {
         }
     }
 
+    Repeater {
+        model: codeController.blocks
+        delegate: CodeDecoration {
+            editor: root
+        }
+    }
+
     function refreshDecorations() {
         const d = decorations();
         _tasks = d ? d.tasks : [];
         _rules = d ? d.rules : [];
         tableController.refresh();
         tableController.measure();
+        codeController.measure();
         repaintTimer.restart();
     }
 
@@ -109,7 +166,15 @@ TextEdit {
     }
 
     function decorations() {
-        return sourceMode ? null : Md.decorations(markdownText, plain());
+        if (sourceMode)
+            return null;
+        const plainText = plain();
+        const key = revision + "\n" + plainText;
+        if (key !== _decorationsKey) {
+            _decorationsKey = key;
+            _decorations = Md.decorations(markdownText, plainText);
+        }
+        return _decorations;
     }
 
     function _flattenCells() {
@@ -133,7 +198,7 @@ TextEdit {
                 text = md;
                 return;
             }
-            const prepared = Tables.prepare(md, {
+            const prepared = Tables.prepare(Code.prepare(md), {
                 border: tableBorderColor.toString()
             });
             tableLayouts = prepared.layouts;
@@ -208,6 +273,17 @@ TextEdit {
     }
 
     function rewriteLineAt(pos, fn) {
+        return rewriteAt(pos, (lines, found) => {
+            const idx = Md.joinParagraph(lines, found);
+            const result = fn(lines[idx], Md.parseLine(lines[idx]));
+            if (result === null || result === undefined)
+                return null;
+            lines[idx] = result;
+            return lines.join("\n");
+        });
+    }
+
+    function rewriteAt(pos, fn) {
         const block = blockRange(pos);
         const shift = (pos === block.start && block.text.length > 0) ? 1 : 0;
         slashController.close();
@@ -215,17 +291,15 @@ TextEdit {
         insert(pos + shift, Md.MARKER);
         const lines = markdownText.split("\n");
         const found = lines.findIndex(l => l.indexOf(Md.MARKER) >= 0);
-        const idx = found < 0 ? -1 : Md.joinParagraph(lines, found);
-        const result = idx < 0 ? null : fn(lines[idx], Md.parseLine(lines[idx]));
-        if (result === null || result === undefined) {
+        const md = found < 0 ? null : fn(lines, found);
+        if (md === null || md === undefined) {
             _dropMarker();
             cursorPosition = pos;
             _loading = false;
             return false;
         }
         rewriteStarted();
-        lines[idx] = result;
-        _assign(lines.join("\n"));
+        _assign(md);
         const p = _dropMarker();
         if (p >= 0)
             cursorPosition = Math.max(0, p - shift);
@@ -340,7 +414,7 @@ TextEdit {
     }
 
     function wrapSelection(wrap) {
-        if (sourceMode || selectionStart === selectionEnd)
+        if (sourceMode || selectionStart === selectionEnd || codeController.containsSelection())
             return false;
         const s = selectionStart;
         const e = selectionEnd;
@@ -364,7 +438,7 @@ TextEdit {
     }
 
     function setBlockType(type, toggle) {
-        if (sourceMode || tableController.locate(cursorPosition))
+        if (sourceMode || tableController.locate(cursorPosition) || codeController.at(cursorPosition))
             return false;
         return rewriteLineAt(cursorPosition, (line, p) => {
             const rest = Md.stripBlockPrefix(p.list ? p.rest : line);
@@ -420,7 +494,7 @@ TextEdit {
     }
 
     function toggleTaskAt(pos) {
-        if (sourceMode || tableController.locate(pos))
+        if (sourceMode || tableController.locate(pos) || codeController.at(pos))
             return false;
         return rewriteLineAt(pos, (line, p) => {
             if (!p.list || !p.task)
@@ -431,13 +505,17 @@ TextEdit {
 
     function isMarkerHit(x, y) {
         const pos = positionAt(x, y);
-        if (tableController.locate(pos))
+        if (tableController.locate(pos) || codeController.at(pos))
             return -1;
         const block = blockRange(pos);
         const r = positionToRectangle(block.start);
         if (y < r.y || y > r.y + r.height || x >= r.x - 2)
             return -1;
         return block.start;
+    }
+
+    function _isFormatKey(key) {
+        return [Qt.Key_B, Qt.Key_I, Qt.Key_E, Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_0, Qt.Key_L, Qt.Key_O].indexOf(key) >= 0;
     }
 
     function _handleCtrl(key, shift) {
@@ -496,8 +574,16 @@ TextEdit {
             }
         }
 
+        const code = codeController.at(cursorPosition);
+
         if (ctrl && !alt) {
-            event.accepted = _handleCtrl(event.key, shift);
+            event.accepted = code ? _isFormatKey(event.key) : _handleCtrl(event.key, shift);
+            return;
+        }
+
+        if (code || codeController.containsSelection()) {
+            if (code && codeController.handleKey(event, code))
+                event.accepted = true;
             return;
         }
 

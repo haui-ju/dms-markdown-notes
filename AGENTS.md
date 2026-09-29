@@ -22,22 +22,26 @@ src/
     MarkdownEditor.qml          TextEdit MarkdownText + teclas + reescrituras
     SlashController.qml         estado y teclas del menú "/"
     TableController.qml         localizar celdas, operaciones, layout, medida y redimensionado
+    CodeController.qml          localizar bloques de código, teclas, lenguaje, borrar, medida
+    CodeDecoration.qml          fondo, selección y texto coloreado sobre el código de Qt
     TaskDecoration.qml          casilla dibujada sobre la de Qt
     RuleDecoration.qml          separador dibujado sobre el de Qt
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
+    logic/code.js               funciones puras: lenguajes, fences, prepare/repair, tokenizador
     logic/slash.js              comandos del menú "/" y filtro sin tildes
   panel/                        UI con componentes DMS (qs.Common, qs.Widgets)
     NotesPanel.qml              compone todo; guardado, atajos, acciones
     NoteTabs.qml  EditorView.qml  NoteFooter.qml  NoteMenu.qml
     PathInfoPopup.qml  SlashMenu.qml  TableToolbar.qml  TableResizeHandles.qml
-    NoteFileDialogs.qml
+    CodeBlockBar.qml  CodeLanguageMenu.qml  NoteFileDialogs.qml
   components/                   piezas reutilizables (IconButton, PopupSurface, MenuRow,
                                 IconLabelButton, TitleBar)
   windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
-  tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout
+  tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout,
+                                code
 ```
 
 Reglas:
@@ -59,6 +63,7 @@ flowchart LR
   view --> editor[MarkdownEditor]
   editor --> slash[SlashController]
   editor --> table[TableController]
+  editor --> code[CodeController]
 ```
 
 - Hay un único `NotesPanel`. Su `parent` cambia entre el contenedor del panel lateral y el de la ventana flotante.
@@ -69,7 +74,7 @@ flowchart LR
 
 - **`text` en modo MarkdownText devuelve Markdown serializado por Qt.**
   - Usa `editor.markdownText`, que es una caché ya reparada. No leas `text` directamente.
-  - Asigna el texto solo con `_assign(md)`. Esa función aplica `Tables.prepare` y resuelve el caso del texto vacío.
+  - Asigna el texto solo con `_assign(md)`. Esa función aplica `Code.prepare` y `Tables.prepare`, y resuelve el caso del texto vacío.
 - **Técnica del marcador:** `rewriteLineAt(pos, fn)` inserta `\uE000`, busca la línea serializada, la reescribe, reasigna el texto y quita el marcador.
   - Si `pos` está al inicio de un bloque no vacío, el marcador se inserta desplazado un carácter, porque `insert()` resetea el formato del bloque.
 - **Líneas en blanco:** se guardan como un párrafo con NBSP (`\u00A0`), porque Qt descarta los párrafos vacíos. En modo `PlainText` (vista Markdown), Qt devuelve ese NBSP como espacio normal. `Md.keepBlankLines` lo restaura al leer `text`, fuera de los bloques de código.
@@ -92,6 +97,14 @@ flowchart LR
   - `TableController` lee el layout de la línea encima de la tabla en `markdownText` y lo reescribe junto con la tabla (`_splice`).
   - Qt ignora `height` en celdas y filas. Por eso el alto es una densidad de toda la tabla (`cellpadding`), no un alto por fila.
 - **Medida y arrastre:** `TableController.measure()` calcula los bordes de columna con `positionToRectangle` de las celdas de la primera fila menos el padding. El borde derecho se deduce del layout o del contenido. `TableResizeHandles` dibuja un `MouseArea` por borde y llama a `resize(tabla, borde, x)` al soltar. Las columnas tienen un mínimo del 5 % y el ancho de la tabla va del 15 % al 100 %.
+- **Bloques de código: fences nativos de Qt + overlay.**
+  - Qt conserva el lenguaje del fence, pero descarta un bloque vacío, la última línea en blanco de dentro, fusiona fences contiguos y convierte los tabuladores en 4 espacios. Un `<pre>` HTML se rompe; no lo uses.
+  - `Code.prepare(md)` añade, solo del lado de Qt, una línea vacía de relleno tras el fence de apertura y otra antes del de cierre, y un párrafo NBSP al inicio del documento, entre fences contiguos y tras un bloque que cierra el documento. Sin ese NBSP final Qt no descarta la línea de relleno y un bloque vacío desaparece.
+  - `Code.repair(md)` quita la primera línea vacía tras cada fence de apertura (la de cierre ya la descarta Qt). `Code.fences` solo cuenta fences cerrados: un ```` ``` ```` que se está escribiendo es texto hasta pulsar Enter.
+  - `Md.decorations` devuelve `codes: [{fence, lang, lines: [{start, end, pad}]}]`; los rellenos llevan `pad: true`. `CodeController.at(pos)` da la línea y los límites del contenido (`contentStart`, `contentEnd`), sin contar los rellenos.
+  - El cursor nunca se queda en un relleno: `clampCursor` lo mueve al contenido (con `Qt.callLater`, porque `cursorPositionChanged` llega antes que `textChanged`). Flechas, Enter, Retroceso y Supr en los bordes del contenido los maneja `CodeController.handleKey`.
+  - `CodeDecoration` (z 1) tapa el código de Qt con un fondo opaco y dibuja la selección y el texto coloreado (`StyledText`, `&nbsp;` para no colapsar espacios) con `font.family: "monospace"` y el mismo tamaño, que coincide píxel a píxel con la fuente de código de Qt. El cursor es un `cursorDelegate` propio con z 10 para verse encima.
+  - `CodeBlockBar` va en la línea de relleno superior: chip de lenguaje, copiar (`wl-copy`) y eliminar. `CodeLanguageMenu` vive en `EditorView` para no recortarse con el flickable.
 - **Fuente monoespaciada:** el texto con esa fuente se guarda como `code`, así que la vista formateada usa una fuente proporcional.
 - **Separador al inicio:** un `---` al principio del documento añade un bloque vacío antes (`Md.decorations` lo contempla).
 - **Asignar `""`** conserva el formato del cursor anterior (por ejemplo, la negrita de un título). `_assign` pone el marcador y lo borra.

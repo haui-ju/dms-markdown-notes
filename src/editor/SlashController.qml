@@ -13,6 +13,8 @@ QtObject {
     property var items: []
 
     function canOpenAt(pos) {
+        if (editor.code.at(pos))
+            return false;
         return pos === 0 || /[\s\u00A0\u2029\uFDD0\uFDD1]/.test(editor.plain().charAt(pos - 1));
     }
 
