@@ -1,6 +1,6 @@
 {
   "name": "dms-markdown-notes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "description": "Notion-like Markdown notes plugin for DankMaterialShell",
   "license": "MIT",
