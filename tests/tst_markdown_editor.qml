@@ -181,6 +181,49 @@ Item {
             compare(md(), "item");
         }
 
+        function test_blank_lines_survive_list() {
+            type("hola\n\n\n- item");
+            compare(md(), "hola\n\n\u00a0\n\n\u00a0\n\n- item");
+        }
+
+        function test_blank_lines_survive_rule() {
+            type("hola\n\n\n---\nfin");
+            verify(/^hola\n\n\u00a0\n\n\u00a0\n\n(---|- - -)\n+fin$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_typing_on_blank_line_drops_nbsp() {
+            type("a\n\n");
+            editor.cursorPosition = 2;
+            type("b");
+            compare(md(), "a\n\nb");
+        }
+
+        function test_backspace_removes_blank_line() {
+            type("a\n\n\nb");
+            editor.cursorPosition = 3;
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "a\n\n\u00a0\n\nb");
+        }
+
+        function test_decorations_map_tasks_and_rules() {
+            editor.load("Texto\n\n\u00a0\n\n- [ ] uno\n- [x] dos\n\n- - -\nfin\n");
+            const d = editor.decorations();
+            verify(d !== null);
+            compare(d.tasks.length, 2);
+            compare(d.tasks[0].checked, false);
+            compare(d.tasks[1].checked, true);
+            compare(editor.getText(d.tasks[0].start, d.tasks[0].end), "uno");
+            compare(d.rules.length, 1);
+        }
+
+        function test_decorations_leading_rule() {
+            editor.load("- - -\nFIS:\n\n- uno\n");
+            const d = editor.decorations();
+            verify(d !== null);
+            compare(d.rules.length, 1);
+            compare(d.rules[0], 1);
+        }
+
         function test_strike_inline() {
             type("a ~~no~~ b");
             compare(md(), "a ~~no~~ b");

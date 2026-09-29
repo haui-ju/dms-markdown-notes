@@ -7,6 +7,7 @@ TextEdit {
 
     property bool sourceMode: false
     readonly property string marker: "\uE000"
+    readonly property string blankChar: "\u00A0"
 
     signal edited
     signal rewriteStarted
@@ -15,6 +16,108 @@ TextEdit {
     property int _plainAfterFormatPos: -1
     property bool _loading: false
 
+    // Custom checkboxes and rules drawn over Qt's built-in ones.
+    property color decorationBackground: "transparent"
+    property color accentColor: "#8ab4f8"
+    property color checkMarkColor: "#000000"
+    property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
+    property var _tasks: []
+    property var _rules: []
+
+    function refreshDecorations() {
+        const d = decorations();
+        _tasks = d ? d.tasks : [];
+        _rules = d ? d.rules : [];
+    }
+
+    onWidthChanged: decorationTimer.restart()
+    onContentHeightChanged: decorationTimer.restart()
+    onSourceModeChanged: decorationTimer.restart()
+
+    Timer {
+        id: decorationTimer
+        interval: 30
+        onTriggered: root.refreshDecorations()
+    }
+
+    Repeater {
+        model: root._rules
+
+        delegate: Rectangle {
+            required property int modelData
+            readonly property rect r: root.positionToRectangle(modelData)
+            x: 0
+            y: r.y
+            width: root.width
+            height: r.height
+            color: root.decorationBackground
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: 1
+                color: root.ruleColor
+            }
+        }
+    }
+
+    Repeater {
+        model: root._tasks
+
+        delegate: Item {
+            id: task
+            required property var modelData
+            readonly property rect r: root.positionToRectangle(modelData.start)
+            readonly property rect endR: root.positionToRectangle(modelData.end)
+            readonly property real box: Math.round(root.font.pixelSize * 1.05)
+
+            Rectangle {
+                x: task.r.x - 24
+                y: task.r.y
+                width: 23
+                height: task.r.height
+                color: root.decorationBackground
+            }
+
+            Rectangle {
+                x: task.r.x - task.box - 7
+                y: task.r.y + (task.r.height - task.box) / 2
+                width: task.box
+                height: task.box
+                radius: Math.round(task.box * 0.28)
+                color: task.modelData.checked ? root.accentColor : "transparent"
+                border.width: task.modelData.checked ? 0 : 1.5
+                border.color: Qt.rgba(root.color.r, root.color.g, root.color.b, 0.55)
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: task.modelData.checked
+                    text: "\u2713"
+                    color: root.checkMarkColor
+                    font.pixelSize: Math.round(task.box * 0.8)
+                    font.bold: true
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleTaskAt(task.modelData.start)
+                }
+            }
+
+            // Checked items are dimmed like done tasks.
+            Rectangle {
+                visible: task.modelData.checked
+                x: task.r.x
+                y: task.r.y
+                width: root.width - task.r.x
+                height: task.endR.y + task.endR.height - task.r.y
+                color: Qt.rgba(root.decorationBackground.r, root.decorationBackground.g, root.decorationBackground.b, 0.5)
+            }
+        }
+    }
+
     textFormat: sourceMode ? TextEdit.PlainText : TextEdit.MarkdownText
     wrapMode: TextEdit.Wrap
     selectByMouse: true
@@ -22,6 +125,7 @@ TextEdit {
     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
 
     onTextChanged: {
+        decorationTimer.restart();
         if (!_loading)
             edited();
     }
@@ -204,16 +308,42 @@ TextEdit {
         if (b.text === "```") {
             return rewriteLineAt(cursorPosition, (line, p) => p.list ? null : "```\n" + marker + "\n```");
         }
-        if (b.text === "") {
-            return rewriteLineAt(cursorPosition, (line, p) => (p.list || /^(#{1,6}\s|>)/.test(line)) ? "\n" + marker : null);
+        if (b.text === "" || b.text === blankChar) {
+            // Markdown drops empty paragraphs; a lone NBSP keeps the blank line.
+            return rewriteLineAt(cursorPosition, (line, p) => {
+                if (p.list || /^(#{1,6}\s|>)/.test(line))
+                    return "\n" + marker;
+                return blankChar + "\n\n" + marker;
+            });
         }
         // Qt keeps the heading format on the new block; Notion starts a paragraph.
         return rewriteLineAt(cursorPosition, line => /^#{1,6}\s/.test(line) ? line.replace(marker, "") + "\n\n" + marker : null);
     }
 
+    // Removes the NBSP of a blank line before typing into it.
+    function clearBlankLine() {
+        const b = blockRange(cursorPosition);
+        if (b.text !== blankChar)
+            return;
+        _loading = true;
+        remove(b.start, b.end);
+        _loading = false;
+        cursorPosition = b.start;
+    }
+
     // Backspace at the start of a heading, quote or list item drops the block format.
     function tryBackspaceShortcut() {
         const b = blockRange(cursorPosition);
+        if (b.text === blankChar) {
+            _loading = true;
+            if (b.start > 0)
+                remove(b.start - 1, b.end);
+            else
+                remove(0, Math.min(length, b.end + 1));
+            _loading = false;
+            edited();
+            return true;
+        }
         if (cursorPosition !== b.start)
             return false;
         return rewriteLineAt(cursorPosition, (line, p) => {
@@ -359,6 +489,120 @@ TextEdit {
         });
     }
 
+    // Blocks as serialized in Markdown, in document order. Empty paragraphs are
+    // not serialized, so they are skipped during alignment.
+    function _markdownBlocks(md) {
+        const lines = md.split("\n");
+        const blocks = [];
+        let inFence = false;
+        let para = null;
+        for (const line of lines) {
+            if (/^\s*```/.test(line)) {
+                inFence = !inFence;
+                para = null;
+                continue;
+            }
+            if (inFence) {
+                blocks.push({
+                    type: "code",
+                    text: line
+                });
+                continue;
+            }
+            if (/^\s*\|/.test(line))
+                return null;
+            if (/^[ \t]*$/.test(line) || /^>[ \t]*$/.test(line)) {
+                para = null;
+                continue;
+            }
+            if (/^\s*(- - -|---+|\*\*\*+|___+)\s*$/.test(line)) {
+                blocks.push({
+                    type: "rule",
+                    text: ""
+                });
+                para = null;
+                continue;
+            }
+            const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(\[([ xX])\]\s+)?(.*)$/);
+            if (li) {
+                para = {
+                    type: li[3] ? "task" : "item",
+                    checked: li[4] ? /x/i.test(li[4]) : false,
+                    text: li[5]
+                };
+                blocks.push(para);
+                continue;
+            }
+            if (/^#{1,6}\s/.test(line)) {
+                blocks.push({
+                    type: "heading",
+                    text: line.replace(/^#{1,6}\s+/, "")
+                });
+                para = null;
+                continue;
+            }
+            if (para && (para.type !== "heading")) {
+                para.text += " " + line.trim().replace(/^>\s?/, "");
+                continue;
+            }
+            para = {
+                type: "para",
+                text: line.replace(/^>\s?/, "")
+            };
+            blocks.push(para);
+        }
+        return blocks;
+    }
+
+    function _norm(s) {
+        return s.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\\(.)/g, "$1").replace(/[*_`~\u00A0\s]+/g, "").replace(new RegExp(marker, "g"), "");
+    }
+
+    // Plain positions of task items and horizontal rules, or null when the
+    // Markdown cannot be aligned with the document blocks.
+    function decorations() {
+        if (sourceMode)
+            return null;
+        const blocks = _markdownBlocks(text);
+        if (!blocks)
+            return null;
+        const all = plain();
+        const tasks = [];
+        const rules = [];
+        let j = 0;
+        let start = 0;
+        for (let i = 0; i <= all.length; i++) {
+            if (i < all.length && all.charCodeAt(i) !== 0x2029)
+                continue;
+            const blockText = all.substring(start, i);
+            const b = blocks[j];
+            // A leading rule is imported after an extra empty first block.
+            if (b && b.type === "rule" && start === 0 && all.charCodeAt(0) === 0x2029 && all.charCodeAt(1) === 0x2029) {
+                start = i + 1;
+                continue;
+            }
+            if (b && b.type === "rule" && blockText === "") {
+                rules.push(start);
+                j++;
+            } else if (b && b.type !== "rule" && _norm(b.text) === _norm(blockText)) {
+                if (b.type === "task")
+                    tasks.push({
+                        start: start,
+                        end: i,
+                        checked: b.checked
+                    });
+                j++;
+            } else if (blockText.trim() !== "") {
+                return null;
+            }
+            start = i + 1;
+        }
+        return {
+            tasks: tasks,
+            rules: rules
+        };
+    }
+
     // True when (x, y) hits the list marker area of a block that starts at blockStart.
     function isMarkerHit(x, y) {
         const pos = positionAt(x, y);
@@ -434,6 +678,9 @@ TextEdit {
                 event.accepted = true;
             return;
         }
+
+        if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && selectionStart === selectionEnd)
+            clearBlankLine();
 
         if (event.key === Qt.Key_Backspace && !alt && selectionStart === selectionEnd) {
             if (tryBackspaceShortcut())

@@ -357,6 +357,9 @@ Item {
                 color: Theme.surfaceText
                 selectionColor: Theme.primary
                 selectedTextColor: Theme.background
+                decorationBackground: Qt.tint(Theme.surfaceContainer, editorFrame.color)
+                accentColor: Theme.primary
+                checkMarkColor: Theme.background
                 // Qt serializes fixed-pitch text as `code`, so the rich view needs a proportional font.
                 font.family: sourceMode ? SettingsData.monoFontFamily : SettingsData.fontFamily
                 font.pixelSize: (SettingsData.notepadFontSize || 14) * (SettingsData.fontScale || 1)
