@@ -341,4 +341,18 @@ TestCase {
         for (const md of same)
             compare(Md.repairWrapping(md), md);
     }
+
+    function test_repair_escaped_code() {
+        const cases = [["`\\\\\\#` y `\\#`", "`#` y `#`", 2], ["`\\\\\\\\\\\\\\- x`", "`- x`", 1], ["`\\\\#`", "`\\\\#`", 0], ["`a\\\\\\\\b` `a\\\\b` `a\\b` `c:\\\\`", "`a\\b` `a\\b` `a\\b` `c:\\`", 3], ["\\\\\\# `x` fuera", "\\\\\\# `x` fuera", 0], ["|`x\\\\\\|y` `\\#`|b|", "|`x\\|y` `#`|b|", 2], ["```\n`\\#`\n```", "```\n`\\#`\n```", 0], ["---\na: `\\#`\n---\n`\\#`", "---\na: `\\#`\n---\n`#`", 1], ["texto sin nada", "texto sin nada", 0]];
+        for (const c of cases) {
+            const r = Md.repairEscapedCode(c[0]);
+            compare(r.md, c[1], c[0]);
+            compare(r.count, c[2], c[0]);
+        }
+    }
+
+    function test_repair_escaped_code_is_idempotent() {
+        const once = Md.repairEscapedCode("`\\\\\\\\\\\\\\# t` y `a\\\\\\\\b`").md;
+        compare(Md.repairEscapedCode(once).count, 0);
+    }
 }

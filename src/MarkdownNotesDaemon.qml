@@ -119,5 +119,18 @@ PluginComponent {
             panel.newNote();
             return "created";
         }
+
+        function openNote(name: string): string {
+            if (!root.isShown())
+                root.toggle("");
+            return panel.openNote(name) || "invalid";
+        }
+
+        function search(query: string): string {
+            if (!root.isShown())
+                root.toggle("");
+            Qt.callLater(() => panel.openSearch(query));
+            return "search";
+        }
     }
 }

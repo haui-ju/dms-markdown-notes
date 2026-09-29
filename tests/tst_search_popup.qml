@@ -108,6 +108,49 @@ Item {
             compare(popup.results.length, 2);
         }
 
+        function test_hash_lists_tags_and_picks_one() {
+            keyClick("#");
+            tryVerify(() => proc.running, 1000);
+            compare(proc.command[0], "find");
+            verify(proc.command.indexOf("want=") < 0);
+            proc.finish(0, "idea\t2\nAño\t1\nidea\t1\n");
+            compare(popup.results.map(r => r.tag + ":" + r.count), ["idea:3", "Año:1"]);
+            compare(popup.status, "");
+            keyClick(Qt.Key_Down);
+            keyClick(Qt.Key_Return);
+            tryVerify(() => proc.running, 1000);
+            verify(proc.command.indexOf("want=año") > 0);
+            compare(spy.last, null);
+            proc.finish(0, "/n/a.md:3:texto #Año\n");
+            compare(popup.results.length, 1);
+            keyClick(Qt.Key_Return);
+            compare(spy.last.path, "/n/a.md");
+            compare(spy.last.query, "#Año");
+        }
+
+        function test_no_tags() {
+            keyClick("#");
+            tryVerify(() => proc.running, 1000);
+            proc.finish(0, "");
+            compare(popup.status, "No hay etiquetas");
+        }
+
+        function test_numeric_hash_is_text_search() {
+            typeQuery("#1");
+            compare(proc.command[0], "grep");
+            proc.finish(1, "");
+        }
+
+        function test_open_with_tag_prefills() {
+            popup.open("#idea");
+            compare(proc.command[0], "find");
+            verify(proc.command.indexOf("want=idea") > 0);
+            proc.finish(0, "");
+            popup.open();
+            verify(proc.command.indexOf("want=idea") > 0);
+            proc.finish(0, "");
+        }
+
         function test_grep_error_clears() {
             typeQuery("hola");
             proc.finish(2, "grep: /n: No such file or directory\n");

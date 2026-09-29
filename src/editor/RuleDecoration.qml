@@ -5,7 +5,7 @@ Rectangle {
 
     required property int modelData
     required property var editor
-    readonly property rect area: editor.positionToRectangle(modelData)
+    readonly property rect area: editor.rectAt(modelData)
 
     y: area.y
     width: editor.width

@@ -4,6 +4,7 @@ import qs.Common
 import qs.Services
 import "../store"
 import "../editor/logic/images.js" as Images
+import "../editor/logic/links.js" as Links
 import "../store/search.js" as Search
 
 Item {
@@ -39,11 +40,11 @@ Item {
         confirmDelete = false;
     }
 
-    function openSearch() {
+    function openSearch(text) {
         flushSave();
         closePopups();
         showSearch = true;
-        searchPopup.open();
+        searchPopup.open(text);
     }
 
     function openMatch(path, line, query) {
@@ -99,6 +100,18 @@ Item {
         focusEditor();
     }
 
+    function openNote(target) {
+        const path = Links.notePath(store.dir, store.home, target);
+        if (path === "")
+            return "";
+        flushSave();
+        closePopups();
+        Quickshell.execDetached(["mkdir", "-p", "--", path.substring(0, path.lastIndexOf("/"))]);
+        store.openPath(path);
+        focusEditor();
+        return path;
+    }
+
     function openFile() {
         flushSave();
         dialogs.open();
@@ -124,6 +137,7 @@ Item {
 
     function onShown() {
         store.ensureTab();
+        editor.relayoutDecorations();
         focusEditor();
     }
 
@@ -173,6 +187,10 @@ Item {
         case "source":
             toggleSource();
             break;
+        case "repair":
+            ToastService.showInfo("Código reparado: " + editor.repairEscapedCode() + " cambios");
+            focusEditor();
+            break;
         case "rename":
             tabs.editingIndex = store.currentIndex;
             break;
@@ -209,6 +227,10 @@ Item {
 
         function onWikiLinkActivated(target) {
             links.open(target, store.currentPath);
+        }
+
+        function onTagActivated(tag) {
+            root.openSearch("#" + tag);
         }
 
         function onImageActivated(pos, url, src, alt) {
@@ -404,6 +426,7 @@ Item {
         anchors.bottomMargin: Theme.spacingS
         sourceMode: root.editor.sourceMode
         confirmDelete: root.confirmDelete
+        escapedCode: root.showMenu ? root.editor.escapedCodeCount() : 0
         onTriggered: action => root.runMenuAction(action)
     }
 

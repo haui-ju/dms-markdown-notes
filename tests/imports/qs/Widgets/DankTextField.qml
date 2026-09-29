@@ -4,6 +4,7 @@ Item {
     id: root
 
     property alias text: input.text
+    property alias cursorPosition: input.cursorPosition
     property string placeholderText: ""
     property string leftIconName: ""
     property bool showClearButton: false

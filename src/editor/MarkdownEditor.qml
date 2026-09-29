@@ -5,6 +5,7 @@ import "logic/code.js" as Code
 import "logic/paste.js" as Paste
 import "logic/images.js" as Images
 import "logic/links.js" as Links
+import "logic/tags.js" as Tags
 
 TextEdit {
     id: root
@@ -18,6 +19,7 @@ TextEdit {
     property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
     property color quoteBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
     property color linkBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
+    property color tagBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
     property color tableBorderColor: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.3))
     property var tableLayouts: []
     property color selectionTextColor: "#000000"
@@ -35,12 +37,14 @@ TextEdit {
     readonly property alias slash: slashController
     readonly property alias table: tableController
     readonly property alias code: codeController
+    property int layoutRevision: 0
     property var _decorations: null
     property string _decorationsKey: ""
     property var _tasks: []
     property var _rules: []
     property var _quotes: []
     property var _links: []
+    property var _tags: []
     property string _frontMatter: ""
     property int _plainAfterFormatPos: -1
     property int _emptyHeadingPos: -1
@@ -78,6 +82,7 @@ TextEdit {
     signal rewriteFinished
     signal imageActivated(int pos, string url, string src, string alt)
     signal wikiLinkActivated(string target)
+    signal tagActivated(string tag)
     signal imagePasteRequested
     signal imageFilesPasted(var paths)
     signal imageRequested
@@ -159,7 +164,7 @@ TextEdit {
             markdownText = Md.keepBlankLines(text);
         } else {
             const plainText = plain();
-            markdownText = _frontMatter + Md.repairWrapping(Md.unescapeCodeSpans(Links.unescape(Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText)))));
+            markdownText = _frontMatter + Md.repairWrapping(Md.unescapeCodeSpans(Tags.unescape(Links.unescape(Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText))))));
         }
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
@@ -180,12 +185,25 @@ TextEdit {
     onSelectionStartChanged: repaintTimer.restart()
     onSelectionEndChanged: repaintTimer.restart()
     onWidthChanged: {
-        decorationTimer.restart();
+        relayoutDecorations();
         if (images.length > 0)
             imageLayoutTimer.restart();
     }
     onContentHeightChanged: decorationTimer.restart()
     onSourceModeChanged: decorationTimer.restart()
+    onFontChanged: relayoutDecorations()
+    on_WindowChanged: relayoutDecorations()
+
+    readonly property var _window: Window.window
+
+    Connections {
+        target: root._window
+        ignoreUnknownSignals: true
+
+        function onVisibleChanged() {
+            root.relayoutDecorations();
+        }
+    }
 
     SlashController {
         id: slashController
@@ -206,6 +224,17 @@ TextEdit {
         id: decorationTimer
         interval: 30
         onTriggered: root.refreshDecorations()
+    }
+
+    Timer {
+        id: settleTimer
+        interval: 250
+        onTriggered: root.refreshDecorations()
+    }
+
+    function relayoutDecorations() {
+        decorationTimer.restart();
+        settleTimer.restart();
     }
 
     Timer {
@@ -230,8 +259,17 @@ TextEdit {
 
     Repeater {
         model: root._links
-        delegate: WikiLinkDecoration {
+        delegate: InlineDecoration {
             editor: root
+        }
+    }
+
+    Repeater {
+        model: root._tags
+        delegate: InlineDecoration {
+            editor: root
+            chip: true
+            fill: root.tagBackground
         }
     }
 
@@ -256,12 +294,20 @@ TextEdit {
         }
     }
 
+    function rectAt(pos) {
+        layoutRevision;
+        return positionToRectangle(pos);
+    }
+
     function refreshDecorations() {
+        layoutRevision++;
         const d = decorations();
         _tasks = d ? d.tasks : [];
         _rules = d ? d.rules : [];
         _quotes = d ? d.quotes : [];
-        _links = d ? Links.parse(plain()).filter(link => !codeController.at(link.start)) : [];
+        const text = d ? plain() : "";
+        _links = d ? Links.parse(text).filter(link => !codeController.at(link.start)) : [];
+        _tags = d ? Tags.matchMarkdown(Tags.parse(text).filter(tag => !codeController.at(tag.start) && !Links.at(_links, tag.start)), Md.splitFrontMatter(markdownText).body) : [];
         tableController.refresh();
         tableController.measure();
         codeController.measure();
@@ -668,6 +714,19 @@ TextEdit {
         rewriteFinished();
         edited();
         _closeGroup();
+    }
+
+    function escapedCodeCount() {
+        return sourceMode ? 0 : Md.repairEscapedCode(markdown()).count;
+    }
+
+    function repairEscapedCode() {
+        const fixed = Md.repairEscapedCode(markdown());
+        if (sourceMode || fixed.count === 0)
+            return 0;
+        const pos = cursorPosition;
+        replaceMarkdown(fixed.md, () => cursorPosition = Math.min(pos, length));
+        return fixed.count;
     }
 
     function _dropMarker() {
@@ -1126,6 +1185,18 @@ TextEdit {
         if (link === null)
             return false;
         wikiLinkActivated(link.target);
+        return true;
+    }
+
+    function tagAt(x, y) {
+        return sourceMode ? null : Tags.at(_tags, positionAt(x, y));
+    }
+
+    function activateTagAt(x, y) {
+        const tag = tagAt(x, y);
+        if (tag === null)
+            return false;
+        tagActivated(tag.tag);
         return true;
     }
 

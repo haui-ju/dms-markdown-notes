@@ -3,6 +3,7 @@ import QtTest
 import "../src/editor"
 
 Item {
+    id: testRoot
     width: 500
     height: 600
 
@@ -15,6 +16,29 @@ Item {
     EditorTestCase {
         name: "MarkdownEditor"
         editor: subject
+
+        function test_decorations_follow_layout_after_moving_windows() {
+            const editor = Qt.createQmlObject("import QtQuick; import \"../src/editor\"; MarkdownEditor { width: 200 }", testRoot, "moved");
+            editor.parent = null;
+            editor.load("Un párrafo bastante largo que se parte en varias líneas cuando el panel es estrecho, con #tag y [[Nota]].\n\n- [ ] tarea\n\n> cita\n\n---\n\nfin");
+            editor.refreshDecorations();
+            editor.parent = testRoot;
+            editor.width = 480;
+            wait(400);
+            const items = [];
+            for (let i = 0; i < editor.children.length; i++) {
+                const c = editor.children[i];
+                if (c.modelData !== undefined && (c.area !== undefined || c.first !== undefined))
+                    items.push(c);
+            }
+            verify(items.length >= 5, items.length);
+            for (const item of items) {
+                const start = typeof item.modelData === "number" ? item.modelData : item.modelData.start;
+                const rect = item.area !== undefined ? item.area : item.first;
+                compare(rect.y, editor.positionToRectangle(start).y);
+            }
+            editor.destroy();
+        }
 
         function test_heading() {
             type("# Titulo");

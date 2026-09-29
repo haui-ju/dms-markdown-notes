@@ -5,13 +5,13 @@ Item {
 
     required property var modelData
     required property var editor
-    property bool pill: false
+    property bool chip: false
     property color fill: editor.linkBackground
-    readonly property rect first: editor.positionToRectangle(modelData.start)
-    readonly property rect last: editor.positionToRectangle(modelData.end)
+    readonly property rect first: editor.rectAt(modelData.start)
+    readonly property rect last: editor.rectAt(modelData.end)
     readonly property bool wrapped: last.y > first.y + first.height / 2
     readonly property real lineEnd: editor.width - editor.rightPadding
-    readonly property real pad: pill ? 4 : 2
+    readonly property real pad: chip ? 1 : 2
 
     z: -1
 
@@ -48,14 +48,14 @@ Item {
 
             Rectangle {
                 anchors.fill: parent
-                anchors.topMargin: root.pill ? 1 : 0
-                anchors.bottomMargin: root.pill ? 1 : 0
-                radius: root.pill ? height / 2 : 3
+                anchors.topMargin: root.chip ? 1 : 0
+                anchors.bottomMargin: root.chip ? 1 : 0
+                radius: root.chip ? 5 : 3
                 color: root.fill
             }
 
             Rectangle {
-                visible: !root.pill
+                visible: !root.chip
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom

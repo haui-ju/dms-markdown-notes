@@ -361,7 +361,7 @@ function _runAt(text, i) {
     return n;
 }
 
-function _unescapeSpans(text, keepPipes) {
+function _mapSpans(text, fn) {
     let out = "";
     let i = 0;
     while (i < text.length) {
@@ -385,7 +385,7 @@ function _unescapeSpans(text, keepPipes) {
             continue;
         }
         const close = j + _runAt(text, j) - n;
-        const content = text.substring(i + n, close).replace(/\\([!-\/:-@\[-`{-~])/g, (m, c) => keepPipes && c === "|" ? m : c);
+        const content = fn(text.substring(i + n, close));
         const misplacedPad = /^ `|`$/.test(content) && /^ .*[^ ]$/.test(content) && text.charAt(close + n) === " ";
         out += fence + _padCode(content) + fence;
         i = close + n + (misplacedPad ? 1 : 0);
@@ -457,15 +457,47 @@ function repairWrapping(md) {
     return lines.join("\n");
 }
 
+var PUNCT = /[!-\/:-@\[\]-`{-~]/;
+
 function unescapeCodeSpans(md) {
     if (md.indexOf("`") < 0)
         return md;
+    return _mapCodeSpans(md, (content, inTable) => content.replace(/\\([!-\/:-@\[-`{-~])/g, (m, c) => inTable && c === "|" ? m : c));
+}
+
+function repairEscapedCode(md) {
+    const split = splitFrontMatter(md);
+    let count = 0;
+    if (split.body.indexOf("`") < 0 || split.body.indexOf("\\") < 0)
+        return {
+            md: md,
+            count: 0
+        };
+    const body = _mapCodeSpans(split.body, (content, inTable) => content.replace(/(\\+)([^\\]|$)/g, (m, run, c) => {
+        const n = run.length;
+        let keep = n;
+        if (PUNCT.test(c) && ((n + 1) & n) === 0)
+            keep = inTable && c === "|" ? 1 : 0;
+        else if (!PUNCT.test(c) && n >= 2 && (n & (n - 1)) === 0)
+            keep = 1;
+        if (keep === n)
+            return m;
+        count++;
+        return "\\".repeat(keep) + c;
+    }));
+    return {
+        md: md.substring(0, md.length - split.body.length) + body,
+        count: count
+    };
+}
+
+function _mapCodeSpans(md, fn) {
     const out = [];
     let para = [];
     let fence = null;
     const flush = () => {
         if (para.length > 0)
-            out.push(..._unescapeSpans(para.join("\n"), false).split("\n"));
+            out.push(..._mapSpans(para.join("\n"), c => fn(c, false)).split("\n"));
         para = [];
     };
     for (const line of md.split("\n")) {
@@ -479,7 +511,7 @@ function unescapeCodeSpans(md) {
             out.push(line);
         } else if (/^\s*\|/.test(line)) {
             flush();
-            out.push(_unescapeSpans(line, true));
+            out.push(_mapSpans(line, c => fn(c, true)));
         } else if (line.trim() === "") {
             flush();
             out.push(line);

@@ -5,8 +5,8 @@ Item {
 
     required property var modelData
     required property var editor
-    readonly property rect first: editor.positionToRectangle(modelData.start)
-    readonly property rect last: editor.positionToRectangle(modelData.end)
+    readonly property rect first: editor.rectAt(modelData.start)
+    readonly property rect last: editor.rectAt(modelData.end)
     readonly property real pad: 4
 
     z: -1

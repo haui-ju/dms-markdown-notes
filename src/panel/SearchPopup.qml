@@ -18,7 +18,7 @@ PopupSurface {
         if (search.busy && search.resultsQuery !== search.query.trim())
             return "Buscando…";
         if (results.length === 0)
-            return "Sin resultados";
+            return search.listingTags ? "No hay etiquetas" : "Sin resultados";
         return "";
     }
 
@@ -26,9 +26,14 @@ PopupSurface {
 
     height: field.height + Theme.spacingS * 3 + Math.min(list.contentHeight, 320) + (status !== "" ? hint.implicitHeight + Theme.spacingS : 0)
 
-    function open() {
+    function open(text) {
+        if (text !== undefined)
+            field.text = text;
         field.forceActiveFocus();
-        field.selectAll();
+        if (text === undefined)
+            field.selectAll();
+        else
+            field.cursorPosition = field.text.length;
         search.refresh();
     }
 
@@ -39,7 +44,11 @@ PopupSurface {
 
     function pick(index) {
         const item = results[index];
-        if (item)
+        if (!item)
+            return;
+        if (item.tag !== undefined)
+            open("#" + item.tag);
+        else
             picked(item.path, item.line, search.resultsQuery);
     }
 
@@ -69,7 +78,7 @@ PopupSurface {
         anchors.right: parent.right
         anchors.margins: Theme.spacingS
         leftIconName: "search"
-        placeholderText: "Buscar en todas las notas"
+        placeholderText: "Buscar en las notas (# para etiquetas)"
         showClearButton: true
         keyForwardTargets: [keys]
         onTextChanged: search.search(text)
@@ -125,17 +134,26 @@ PopupSurface {
 
                 StyledText {
                     width: parent.width
-                    text: (row.modelData.folder ? row.modelData.folder + "/" : "") + row.modelData.title
+                    text: row.modelData.tag !== undefined ? "#" + row.modelData.tag : (row.modelData.folder ? row.modelData.folder + "/" : "") + row.modelData.title
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: Theme.surfaceText
+                    color: row.modelData.tag !== undefined ? Theme.primary : Theme.surfaceText
                     elide: Text.ElideRight
                 }
 
                 StyledText {
                     width: parent.width
+                    visible: row.modelData.tag !== undefined
+                    text: row.modelData.count + (row.modelData.count === 1 ? " nota" : " notas")
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
+                }
+
+                StyledText {
+                    width: parent.width
+                    visible: row.modelData.tag === undefined
                     textFormat: Text.StyledText
-                    text: Search.highlight(row.modelData.text, search.resultsQuery, Theme.primary.toString(), 60)
+                    text: visible ? Search.highlight(row.modelData.text, search.resultsQuery, Theme.primary.toString(), 60) : ""
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceVariantText
                     wrapMode: Text.Wrap

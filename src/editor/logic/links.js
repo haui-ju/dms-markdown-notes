@@ -83,6 +83,12 @@ function pick(output, dir, target, fromPath) {
     return found[0];
 }
 
+function notePath(dir, home, target) {
+    const t = String(target || "").trim().replace(/^~(?=\/)/, home);
+    const full = t.charAt(0) === "/" ? t.replace(/\/+$/, "") : newPath(dir, t.replace(/\.md$/i, ""));
+    return full === "" || full.charAt(full.length - 1) === "/" ? "" : (/\.md$/i.test(full) ? full : full + ".md");
+}
+
 function newPath(dir, target) {
     const safe = safeTarget(target);
     return safe === "" ? "" : dir.replace(/\/+$/, "") + "/" + safe + ".md";

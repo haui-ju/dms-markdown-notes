@@ -21,6 +21,18 @@ TestCase {
         compare(Links.parse("[[nota.md]]")[0].target, "nota");
     }
 
+    function test_note_path() {
+        compare(Links.notePath("/n", "/h", "diario/hoy"), "/n/diario/hoy.md");
+        compare(Links.notePath("/n", "/h", " Idea.md "), "/n/Idea.md");
+        compare(Links.notePath("/n", "/h", "../../etc/passwd"), "/n/etc/passwd.md");
+        compare(Links.notePath("/n", "/h", "~/otra/x"), "/h/otra/x.md");
+        compare(Links.notePath("/n", "/h", "/tmp/a.MD"), "/tmp/a.MD");
+        compare(Links.notePath("/n", "/h", "/tmp/dir/"), "/tmp/dir.md");
+        compare(Links.notePath("/n", "/h", ""), "");
+        compare(Links.notePath("/n", "/h", ".."), "");
+        compare(Links.notePath("/n", "/h", "/"), "");
+    }
+
     function test_parse_adjacent() {
         compare(Links.parse("[[a]][[b]]").map(l => [l.start, l.end]), [[0, 5], [5, 10]]);
     }

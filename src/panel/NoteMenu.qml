@@ -8,6 +8,7 @@ PopupSurface {
 
     property bool sourceMode: false
     property bool confirmDelete: false
+    property int escapedCode: 0
 
     signal triggered(string action)
 
@@ -34,6 +35,12 @@ PopupSurface {
                     action: "source"
                 },
                 {
+                    icon: "healing",
+                    label: "Reparar barras en código (" + root.escapedCode + ")",
+                    action: "repair",
+                    hidden: root.escapedCode === 0
+                },
+                {
                     icon: "drive_file_rename_outline",
                     label: "Renombrar nota",
                     action: "rename"
@@ -49,7 +56,7 @@ PopupSurface {
                     action: "delete",
                     danger: true
                 }
-            ]
+            ].filter(item => !item.hidden)
 
             delegate: MenuRow {
                 required property var modelData

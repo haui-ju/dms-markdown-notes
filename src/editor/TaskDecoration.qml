@@ -5,8 +5,8 @@ Item {
 
     required property var modelData
     required property var editor
-    readonly property rect area: editor.positionToRectangle(modelData.start)
-    readonly property rect endArea: editor.positionToRectangle(modelData.end)
+    readonly property rect area: editor.rectAt(modelData.start)
+    readonly property rect endArea: editor.rectAt(modelData.end)
     readonly property real box: Math.round(editor.font.pixelSize * 1.05)
     readonly property color ink: editor.color
 

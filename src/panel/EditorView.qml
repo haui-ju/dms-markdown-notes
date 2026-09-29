@@ -83,12 +83,13 @@ Rectangle {
             TapHandler {
                 acceptedButtons: Qt.LeftButton
                 acceptedModifiers: Qt.NoModifier
-                onTapped: eventPoint => editor.activateWikiLinkAt(eventPoint.position.x, eventPoint.position.y)
+                onTapped: eventPoint => editor.activateWikiLinkAt(eventPoint.position.x, eventPoint.position.y) || editor.activateTagAt(eventPoint.position.x, eventPoint.position.y)
             }
 
             HoverHandler {
                 id: linkHover
-                cursorShape: editor.wikiLinkAt(linkHover.point.position.x, linkHover.point.position.y) ? Qt.PointingHandCursor : Qt.IBeamCursor
+                readonly property point at: point.position
+                cursorShape: editor.wikiLinkAt(at.x, at.y) || editor.tagAt(at.x, at.y) ? Qt.PointingHandCursor : Qt.IBeamCursor
             }
 
             StyledText {
