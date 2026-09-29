@@ -21,6 +21,76 @@ Item {
             compare(md(), "# Titulo");
         }
 
+        function headingHeight(source) {
+            subject.load(source);
+            return subject.positionToRectangle(1).height;
+        }
+
+        function test_heading_formats_while_typing() {
+            const expected = headingHeight("# Hola");
+            const normal = headingHeight("Hola");
+            verify(expected > normal);
+            subject.load("");
+            type("# Hola");
+            compare(md(), "# Hola");
+            compare(subject.positionToRectangle(1).height, expected);
+            compare(subject.positionToRectangle(subject.length).height, expected);
+        }
+
+        function test_ctrl_heading_on_empty_line_formats_while_typing() {
+            const expected = headingHeight("## Hola");
+            subject.load("");
+            keyClick(Qt.Key_2, Qt.ControlModifier);
+            type("Hola");
+            compare(md(), "## Hola");
+            compare(subject.positionToRectangle(1).height, expected);
+        }
+
+        function test_heading_after_text_formats_while_typing() {
+            const expected = headingHeight("### T");
+            subject.load("texto");
+            subject.cursorPosition = subject.length;
+            type("\n### T");
+            compare(md(), "texto\n\n### T");
+            compare(subject.positionToRectangle(subject.length).height, expected);
+        }
+
+        function test_emptied_heading_does_not_swallow_next_block() {
+            subject.load("a\n\n# x\n\nfin\n\n## y\n\n- item");
+            let i = subject.plain().indexOf("x");
+            subject.select(i, i + 1);
+            keyClick(Qt.Key_Delete);
+            i = subject.plain().indexOf("y");
+            subject.select(i, i + 1);
+            keyClick(Qt.Key_Delete);
+            compare(md(), "a\n\n# \u00a0\n\nfin\n\n## \u00a0\n\n- item");
+            subject.load(subject.markdown());
+            compare(md(), "a\n\n# \u00a0\n\nfin\n\n## \u00a0\n\n- item");
+        }
+
+        function test_heading_shortcut_on_blank_line_keeps_next_blank() {
+            subject.load("\u00a0\n\n\u00a0\n\n\u00a0\n\nfin");
+            subject.cursorPosition = 2;
+            type("# ");
+            compare(md(), "\u00a0\n\n# \u00a0\n\n\u00a0\n\nfin");
+        }
+
+        function test_saved_empty_heading_formats_while_typing() {
+            const expected = headingHeight("# Hola");
+            subject.load("a\n\n# \u00a0\n\nfin");
+            subject.cursorPosition = 2;
+            type("Hola");
+            compare(md(), "a\n\n# Hola\n\nfin");
+            compare(subject.positionToRectangle(3).height, expected);
+        }
+
+        function test_blank_line_typing_stays_paragraph() {
+            subject.load("a\n\n\u00a0\n\nfin");
+            subject.cursorPosition = 2;
+            type("b");
+            compare(md(), "a\n\nb\n\nfin");
+        }
+
         function test_heading_levels() {
             type("### Sub");
             compare(md(), "### Sub");

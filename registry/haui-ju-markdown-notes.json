@@ -1,0 +1,24 @@
+{
+    "id": "markdownNotes",
+    "name": "Markdown Notes",
+    "capabilities": [
+        "daemon",
+        "dankbar-widget",
+        "slideout"
+    ],
+    "category": "utilities",
+    "repo": "https://github.com/haui-ju/dms-markdown-notes",
+    "author": "haui-ju",
+    "description": "Notion-like Markdown notes in a slideout: live formatting, slash menu, tables, code blocks with highlighting, images and undo. Notes are plain .md files.",
+    "dependencies": [
+        "glib2",
+        "xdg-utils"
+    ],
+    "compositors": [
+        "any"
+    ],
+    "distro": [
+        "any"
+    ],
+    "screenshot": "https://raw.githubusercontent.com/haui-ju/dms-markdown-notes/main/assets/screenshot.png"
+}

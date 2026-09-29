@@ -14,7 +14,7 @@ Row {
 
     signal switchRequested(int index)
     signal closeRequested(int index)
-    signal renameRequested(string title)
+    signal renameRequested(int index, string title)
     signal newRequested
     signal editingFinished
 
@@ -87,7 +87,7 @@ Row {
                                 visible: !tab.editing
                                 width: parent.width - (closeButton.visible ? closeButton.width + Theme.spacingXS : 0)
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: (tab.isActive && root.dirty ? "● " : "") + root.store.titleOf(tab.modelData)
+                                text: (tab.isActive && root.dirty ? "● " : "") + root.store.labelOf(tab.modelData)
                                 font.pixelSize: Theme.fontSizeSmall
                                 font.weight: tab.isActive ? Font.Medium : Font.Normal
                                 color: tab.isActive ? Theme.primary : Theme.surfaceText
@@ -111,7 +111,7 @@ Row {
                                 bottomPadding: 0
                                 onEditingFinished: {
                                     if (root.editingIndex === tab.index)
-                                        root.renameRequested(text);
+                                        root.renameRequested(tab.index, text);
                                     root.editingIndex = -1;
                                     root.editingFinished();
                                 }

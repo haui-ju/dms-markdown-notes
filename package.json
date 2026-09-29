@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "prepare": "husky",
-    "test": "$(command -v qmltestrunner || echo /usr/lib/qt6/bin/qmltestrunner) -platform offscreen -import tests/imports -input tests"
+    "test": "$(command -v qmltestrunner || echo /usr/lib/qt6/bin/qmltestrunner) -platform offscreen -import tests/imports -input tests",
+    "release": "sh scripts/release.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",

@@ -99,8 +99,13 @@ Item {
         const b = store.assetsFolder(to).split("/").pop();
         if (a === b)
             return;
-        if (!editor.retargetImages(Images.encodePath(a) + "/", Images.encodePath(b) + "/"))
-            editor.retargetImages(a + "/", b + "/");
+        const pairs = [[Images.encodePath(a) + "/", Images.encodePath(b) + "/"], [a + "/", b + "/"]];
+        if (to !== store.currentPath) {
+            store.retargetFile(to, pairs);
+            return;
+        }
+        if (!editor.retargetImages(pairs[0][0], pairs[0][1]))
+            editor.retargetImages(pairs[1][0], pairs[1][1]);
     }
 
     function removeImage(pos, path) {
@@ -184,6 +189,7 @@ Item {
     NotesStore {
         id: store
         notesDir: root.pluginData.notesDir || "~/Notes"
+        onRenameFailed: message => ToastService.showWarning(message)
         onMoved: (from, to) => {
             root.moveHistory(from, to);
             root.retargetAssets(from, to);
@@ -267,7 +273,7 @@ Item {
         dirty: root.dirty
         onSwitchRequested: index => root.switchTab(index)
         onCloseRequested: index => root.closeTab(index)
-        onRenameRequested: title => store.renameCurrent(title)
+        onRenameRequested: (index, title) => store.renameAt(index, title)
         onNewRequested: root.newNote()
         onEditingFinished: root.focusEditor()
     }

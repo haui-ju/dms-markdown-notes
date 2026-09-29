@@ -42,11 +42,14 @@ src/
   components/                   piezas reutilizables (IconButton, PopupSurface, MenuRow,
                                 IconLabelButton, TitleBar)
   windows/                      MarkdownNotesSlideout.qml (PanelWindow), MarkdownNotesPopout.qml
+scripts/release.sh              sube la versión, commit chore(release) y tag vX.Y.Z
+registry/                       ficha para AvengeMedia/dms-plugin-registry
+CHANGELOG.md                    cambios por versión
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
   imports/qs/                   stubs mínimos de qs.Common y qs.Widgets para probar panel/
   tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout, history,
-                                code, paste, editor_view, images
+                                code, paste, editor_view, images, frontmatter
 ```
 
 Reglas:
@@ -133,6 +136,10 @@ flowchart LR
   - El grupo se corta antes del espacio, no después: Qt quita los espacios finales de un párrafo al reasignar el Markdown, y un estado que termina en espacio lo perdería.
   - `_markBefore()` guarda la selección previa al cambio; llámalo antes de cualquier modificación nueva que no pase por teclas, `rewriteAt` ni `replaceMarkdown`.
   - `load(md)` borra el historial; `load(md, true)` (recarga externa) lo conserva como un paso. `NotesPanel.histories` guarda `historyState()` por ruta al cambiar de pestaña y `restoreHistory` solo lo acepta si el contenido coincide. `retargetImages` corrige también las rutas de los estados guardados.
+- **Títulos vacíos:** tras `# ` o Ctrl+1 el bloque queda vacío con formato de título, pero lo que se escribe toma el formato normal del bloque hasta la siguiente reasignación. `_armEmptyHeading` recuerda la posición y el nivel; la primera tecla imprimible hace `insert(pos, "# " + char)`, que aprovecha que `insert()` al inicio del bloque aplica el formato del fragmento. No uses el marcador ahí: insertarlo al inicio de un bloque vacío borra el título.
+- **Título vacío al serializar:** Qt escribe un título vacío como `# ` sin salto de línea, pegado al bloque siguiente (`# fin`, `## - item`), y al recargar ese bloque se vuelve título. `Md.repairEmptyHeadings(md, plain)` alinea los bloques Markdown con el texto plano como `decorations`, y cuando un título está vacío en el texto plano y su contenido coincide con el bloque siguiente, lo separa y lo guarda como `# ` + NBSP. Al escribir en ese título (`_typeIntoBlankHeading`, se detecta por la altura de la línea) el NBSP se sustituye por la letra con una reescritura, para que tenga formato de título.
+- **Front matter:** Qt 6.11 reconoce el YAML inicial (`---`…`---`), lo oculta y lo devuelve en `text`. No hay que hacer nada, pero no rompas esa primera línea `---` (no es un separador).
+- **Interlineado:** `TextEdit` no tiene `lineHeight` ni margen de párrafo en QML, el importador Markdown no aplica márgenes a los párrafos y un `<p style="line-height">` crea o fusiona bloques. No hay forma fiable sin C++.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
 - **Delegados con propiedades `required`:** `editor: editor` dentro del delegado se enlaza a la propia propiedad (queda `undefined`) y los clics fallan sin error visible en DMS. Usa `editor: root.editor`.
@@ -170,6 +177,18 @@ journalctl --user -u dms.service --since -1min | rg -i "markdown|error"
 dms ipc call markdownNotes open
 dms screenshot full --no-clipboard -d /tmp --filename notas.png
 ```
+
+## Renombrado y archivos
+
+- `NotesStore` identifica las pestañas por ruta, nunca por índice guardado: `renameAt(index, title)` resuelve la ruta al pedirlo y `renameProc` actualiza la pestaña buscando `source` al terminar. `NoteTabs` emite el índice de la pestaña que se estaba editando, porque al hacer clic en otra pestaña el cambio llega antes que `editingFinished`.
+- Los movimientos se encolan en `_pendingMoves` (un `Process` ignora `running = true` si ya corre).
+- Renombrar a mano falla con código 3 si el destino existe → `renameFailed` → aviso. El renombrado por título (`uniquify`) añade `-2`, `-3`...
+- Si la nota movida no es la actual, `NotesPanel.retargetAssets` corrige los enlaces de imágenes en el archivo (`store.retargetFile`), no en el editor.
+
+## Versiones
+
+- Semver en `plugin.json` y `package.json` (iguales), tag `vX.Y.Z` y entrada en `CHANGELOG.md` por versión. `pnpm release X.Y.Z` hace todo menos el push.
+- `registry/haui-ju-markdown-notes.json` es la ficha para `AvengeMedia/dms-plugin-registry`; `id` y `name` deben coincidir con `plugin.json`.
 
 ## Commits
 

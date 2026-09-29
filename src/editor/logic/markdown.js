@@ -187,7 +187,8 @@ function blocks(md) {
         if (/^#{1,6}\s/.test(line)) {
             out.push({
                 type: "heading",
-                text: line.replace(/^#{1,6}\s+/, "")
+                line: index,
+                text: line.replace(/^#{1,6}[ \t]+/, "")
             });
             para = null;
             continue;
@@ -273,4 +274,63 @@ function decorations(md, plain) {
         rules: rules,
         codes: codes
     };
+}
+
+function plainParts(plain) {
+    const parts = [];
+    let start = 0;
+    for (let i = 0; i <= plain.length; i++) {
+        if (i < plain.length && !isBoundary(plain.charCodeAt(i)))
+            continue;
+        parts.push(plain.substring(start, i));
+        start = i + 1;
+    }
+    return parts;
+}
+
+function repairEmptyHeadings(md, plain) {
+    if (!/^#{1,6}[ \t]/m.test(md))
+        return md;
+    const list = blocks(md);
+    const parts = plainParts(plain);
+    const fixes = [];
+    let j = 0;
+    for (let k = 0; k < parts.length; k++) {
+        const text = parts[k];
+        while (list[j] && list[j].pad && text !== "")
+            j++;
+        const b = list[j];
+        if (!b)
+            break;
+        if (b.type === "code") {
+            if (!b.pad && norm(b.text) !== norm(text))
+                break;
+            j++;
+            continue;
+        }
+        if (b.type === "rule" && k === 0 && text === "" && parts.length > 1 && parts[1] === "")
+            continue;
+        if (b.type === "heading" && text === "" && b.text !== "" && k + 1 < parts.length) {
+            const merged = blocks(b.text)[0];
+            if (norm(merged ? merged.text : b.text) === norm(parts[k + 1])) {
+                fixes.push(b);
+                j++;
+                k++;
+                continue;
+            }
+        }
+        if (b.type === "rule" ? text === "" : norm(b.text) === norm(text))
+            j++;
+        else if (text.trim() !== "")
+            break;
+    }
+    if (fixes.length === 0)
+        return md;
+    const lines = md.split("\n");
+    for (let f = fixes.length - 1; f >= 0; f--) {
+        const line = lines[fixes[f].line];
+        const level = line.match(/^#{1,6}/)[0];
+        lines.splice(fixes[f].line, 1, level + " " + BLANK, "", line.replace(/^#{1,6}[ \t]+/, ""));
+    }
+    return lines.join("\n");
 }

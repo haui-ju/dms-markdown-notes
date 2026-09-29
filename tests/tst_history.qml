@@ -28,12 +28,12 @@ Item {
         }
 
         function undoAll() {
-            for (let i = 0; i < 50 && subject.canUndo; i++)
+            for (let i = 0; i < 50 && subject.undoAvailable; i++)
                 undo();
         }
 
         function redoAll() {
-            for (let i = 0; i < 50 && subject.canRedo; i++)
+            for (let i = 0; i < 50 && subject.redoAvailable; i++)
                 redo();
         }
 
@@ -66,6 +66,14 @@ Item {
             compare(md(), "uno");
             type(" tres");
             compare(md(), "uno tres");
+        }
+
+        function test_new_paragraph_first_char_not_split() {
+            type("uno");
+            keyClick(Qt.Key_Return);
+            type("dos");
+            undo();
+            compare(md(), "uno");
         }
 
         function test_pause_closes_group() {
@@ -145,13 +153,13 @@ Item {
             type("uno dos");
             undo();
             type("tres");
-            verify(!subject.canRedo);
+            verify(!subject.redoAvailable);
             redo();
             compare(md(), "unotres");
         }
 
         function test_empty_history_is_noop() {
-            verify(!subject.canUndo);
+            verify(!subject.undoAvailable);
             undo();
             redo();
             compare(md(), "");
@@ -227,7 +235,7 @@ Item {
         function test_load_resets_history() {
             type("algo");
             subject.load("otra nota");
-            verify(!subject.canUndo);
+            verify(!subject.undoAvailable);
             undo();
             compare(md(), "otra nota");
         }
@@ -255,7 +263,7 @@ Item {
             const state = subject.historyState();
             subject.load("cambiado");
             verify(!subject.restoreHistory(state));
-            verify(!subject.canUndo);
+            verify(!subject.undoAvailable);
         }
 
         function test_source_mode_undo() {
@@ -326,11 +334,11 @@ Item {
             undo();
             undo();
             compare(md(), "");
-            verify(subject.canRedo);
+            verify(subject.redoAvailable);
             redo();
             redo();
             compare(md(), "uno dos");
-            verify(!subject.canRedo);
+            verify(!subject.redoAvailable);
         }
     }
 }

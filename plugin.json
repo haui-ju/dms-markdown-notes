@@ -1,7 +1,7 @@
 {
   "id": "markdownNotes",
   "name": "Markdown Notes",
-  "description": "Notion-like Markdown notes slideout: headings, lists, clickable checklists and inline formatting while you type. Notes are plain .md files in ~/Notes.",
+  "description": "Notion-like Markdown notes in a slideout: live formatting, slash menu, tables, code blocks with highlighting, images and undo. Notes are plain .md files.",
   "version": "0.4.1",
   "author": "haui-ju",
   "icon": "edit_note",

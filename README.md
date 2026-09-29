@@ -28,7 +28,7 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 
 | Escribes | Resultado |
 | --- | --- |
-| `# `, `## `, `### ` | Título H1, H2, H3 |
+| `# `, `## `, `### ` | Título H1, H2, H3 (con su tamaño desde la primera letra) |
 | `- ` o `* ` | Lista con viñetas |
 | `1. ` | Lista numerada |
 | `[] ` o `- [] ` | Checkbox (clic en la casilla para marcarla) |
@@ -110,7 +110,10 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 
 ## Notas
 
-- Las notas nuevas se llaman `nota-<fecha>.md` y se renombran solas con su primer `# título`.
+- Las notas nuevas se llaman `nota-<fecha>.md` y se renombran solas con su primer `# título`. Si ya existe una nota con ese nombre, se añade `-2`, `-3`...
+- Renombrar (doble clic en la pestaña o menú `…`) solo afecta a esa pestaña, aunque cambies a otra antes de confirmar. Si el nombre ya existe no se sobrescribe nada: aparece un aviso.
+- Si hay dos pestañas con el mismo nombre en carpetas distintas, la pestaña muestra también la carpeta (`ideas · trabajo`).
+- **Propiedades (front matter):** un bloque YAML al inicio (`---` / `title: ...` / `---`), como los de Obsidian o Hugo, se conserva intacto y no se muestra en la vista formateada. Se ve y se edita en la vista Markdown (Ctrl+Shift+M).
 - Se guardan automáticamente; borrar mueve el archivo a la papelera (`gio trash`).
 - Si el archivo cambia fuera del panel (otro editor, `git pull`), se recarga.
 - Ajustes del plugin: carpeta de notas, ancho del panel y lado (izquierda/derecha).
@@ -125,6 +128,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Las imágenes no se pueden redimensionar ni poner dentro de tablas o bloques de código. El texto alternativo (`![texto](...)`) se conserva pero no se muestra.
 - Pegar una imagen requiere el historial del portapapeles de DMS (`dms clipboard`).
 - No hay bloques arrastrables.
+- El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.
 
@@ -140,3 +144,14 @@ pnpm test
 ```
 
 Los commits siguen [Conventional Commits](https://www.conventionalcommits.org/) y se validan con commitlint.
+
+## Versiones
+
+El proyecto usa [versionado semántico](https://semver.org/lang/es/). La versión vive en `plugin.json` y `package.json`, cada versión publicada lleva un tag `vX.Y.Z` y los cambios se anotan en [CHANGELOG.md](CHANGELOG.md). Para publicar una versión:
+
+```bash
+pnpm release 0.6.0   # sube la versión, crea el commit y el tag
+git push --follow-tags
+```
+
+El archivo para el [registro de plugins de DMS](https://github.com/AvengeMedia/dms-plugin-registry) está en `registry/haui-ju-markdown-notes.json`.

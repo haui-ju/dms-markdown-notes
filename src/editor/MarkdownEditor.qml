@@ -37,6 +37,8 @@ TextEdit {
     property var _tasks: []
     property var _rules: []
     property int _plainAfterFormatPos: -1
+    property int _emptyHeadingPos: -1
+    property int _emptyHeadingLevel: 0
     property bool _loading: false
     property bool _flattening: false
     property string imageBaseDir: ""
@@ -49,8 +51,8 @@ TextEdit {
     property real _imageLayoutWidth: 0
     readonly property real imageMaxWidth: width > 0 ? Math.max(64, width - leftPadding - rightPadding - 2) : 480
     readonly property int historyLimit: 200
-    readonly property bool canUndo: _undoStack.length > 0 || _groupOpen
-    readonly property bool canRedo: _redoStack.length > 0 && !_groupOpen
+    readonly property bool undoAvailable: _undoStack.length > 0 || _groupOpen
+    readonly property bool redoAvailable: _redoStack.length > 0 && !_groupOpen
     property var _undoStack: []
     property var _redoStack: []
     property var _committed: ({
@@ -145,7 +147,12 @@ TextEdit {
         if (!sourceMode)
             _flattenCells();
         revision++;
-        markdownText = sourceMode ? Md.keepBlankLines(text) : Images.repair(Code.repair(Tables.repair(text, plain(), tableLayouts)), _imageSources);
+        if (sourceMode) {
+            markdownText = Md.keepBlankLines(text);
+        } else {
+            const plainText = plain();
+            markdownText = Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText);
+        }
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
             codeController.measure();
@@ -648,8 +655,10 @@ TextEdit {
     function rewriteAt(pos, fn, exact) {
         const block = blockRange(pos);
         const shift = (pos === block.start && block.text.length > 0) ? 1 : 0;
-        _closeGroup();
-        _markBefore();
+        const before = {
+            start: selectionStart,
+            end: selectionEnd
+        };
         slashController.close();
         _loading = true;
         insert(pos + shift, Md.MARKER);
@@ -661,6 +670,11 @@ TextEdit {
             cursorPosition = pos;
             _loading = false;
             return false;
+        }
+        _closeGroup();
+        if (!_restoring) {
+            _committed.start = before.start;
+            _committed.end = before.end;
         }
         rewriteStarted();
         _assign(md);
@@ -750,7 +764,7 @@ TextEdit {
         const prefix = plain().substring(block.start, cursorPosition);
         if (!/^(#{1,3}|[-*+]|\d+[.)]|>|\[ ?\]|\[[xX]\])$/.test(prefix))
             return false;
-        return rewriteLineAt(cursorPosition, (line, p) => {
+        const ok = rewriteLineAt(cursorPosition, (line, p) => {
             const after = p.list ? p.rest.substring(p.rest.indexOf(Md.MARKER)) : line.substring(line.indexOf(Md.MARKER));
             const state = /x/i.test(prefix) ? "x" : " ";
             if (p.list)
@@ -765,6 +779,8 @@ TextEdit {
                 return "> " + after;
             return "- [" + state + "] " + after;
         });
+        _armEmptyHeading(ok && /^#{1,3}$/.test(prefix) ? prefix.length : 0);
+        return ok;
     }
 
     function _insertBlock(markup) {
@@ -861,6 +877,31 @@ TextEdit {
         });
     }
 
+    function _armEmptyHeading(level) {
+        _emptyHeadingLevel = level;
+        _emptyHeadingPos = level > 0 && currentBlock().text === "" ? cursorPosition : -1;
+    }
+
+    function _typeIntoEmptyHeading(ch) {
+        const pos = cursorPosition;
+        insert(pos, "#".repeat(_emptyHeadingLevel) + " " + Md.escape(ch));
+        cursorPosition = pos + 1;
+        return true;
+    }
+
+    function _typeIntoBlankHeading(ch) {
+        const block = currentBlock();
+        if (block.text !== Md.BLANK || positionToRectangle(block.start).height <= textMetrics.height + 2)
+            return false;
+        return rewriteAt(cursorPosition, (lines, found) => {
+            const m = lines[found].match(/^(#{1,6})[ \t]/);
+            if (!m)
+                return null;
+            lines[found] = m[1] + " " + Md.escape(ch) + Md.MARKER;
+            return lines.join("\n");
+        }, true);
+    }
+
     function fixNewTaskItem() {
         if (currentBlock().text !== "")
             return;
@@ -911,7 +952,7 @@ TextEdit {
     function setBlockType(type, toggle) {
         if (sourceMode || tableController.locate(cursorPosition) || codeController.at(cursorPosition))
             return false;
-        return rewriteLineAt(cursorPosition, (line, p) => {
+        const ok = rewriteLineAt(cursorPosition, (line, p) => {
             const rest = Md.stripBlockPrefix(p.list ? p.rest : line);
             const indent = p.indent || "";
             switch (type) {
@@ -933,6 +974,8 @@ TextEdit {
                 return rest;
             }
         });
+        _armEmptyHeading(ok && /^h[1-3]$/.test(type) ? Number(type.charAt(1)) : 0);
+        return ok;
     }
 
     function runCommand(id) {
@@ -1069,6 +1112,15 @@ TextEdit {
             return;
         }
 
+        if (_emptyHeadingPos >= 0) {
+            const armed = _emptyHeadingPos;
+            _emptyHeadingPos = -1;
+            if (printable && collapsed && event.text !== "/" && cursorPosition === armed && currentBlock().text === "" && _typeIntoEmptyHeading(event.text)) {
+                event.accepted = true;
+                return;
+            }
+        }
+
         if (_plainAfterFormatPos >= 0) {
             const armedPos = _plainAfterFormatPos;
             _plainAfterFormatPos = -1;
@@ -1121,6 +1173,10 @@ TextEdit {
         }
 
         if (printable && collapsed) {
+            if (event.text !== "/" && _typeIntoBlankHeading(event.text)) {
+                event.accepted = true;
+                return;
+            }
             clearBlankLine();
             if (event.text === "/" && slashController.canOpenAt(cursorPosition))
                 slashController.open(cursorPosition);

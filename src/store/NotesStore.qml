@@ -23,10 +23,12 @@ Item {
     property real lastWriteAt: 0
     property bool _externalReloadPending: false
     property bool sessionLoaded: false
+    property var _pendingMoves: []
 
     signal noteLoaded(string content)
     signal externalChange(string content)
     signal moved(string from, string to)
+    signal renameFailed(string message)
 
     readonly property var autoNamePattern: /^nota-\d{4}-\d{2}-\d{2}-\d{6}(-\d+)?\.md$/
 
@@ -128,12 +130,34 @@ Item {
         return title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 60);
     }
 
-    function renameCurrent(newTitle) {
+    function renameAt(index, newTitle) {
+        const path = index >= 0 && index < tabs.length ? tabs[index] : "";
         const slug = (newTitle || "").trim().replace(/\.md$/i, "").replace(/[\/\\]/g, "-");
-        if (!slug || !currentPath)
+        if (!slug || !path || slug === titleOf(path))
             return;
-        const folder = currentPath.substring(0, currentPath.lastIndexOf("/"));
-        _moveCurrent(folder + "/" + slug + ".md", false);
+        _move(path, path.substring(0, path.lastIndexOf("/")) + "/" + slug + ".md", false);
+    }
+
+    function labelOf(path) {
+        const title = titleOf(path);
+        if (!tabs.some(other => other !== path && titleOf(other) === title))
+            return title;
+        const parts = path.split("/");
+        return title + " · " + (parts.length > 1 ? parts[parts.length - 2] : "/");
+    }
+
+    function retargetFile(path, pairs) {
+        if (!path || path === currentPath)
+            return;
+        otherFile.path = "";
+        otherFile.path = path;
+        otherFile.waitForJob();
+        const content = otherFile.text() || "";
+        let next = content;
+        for (const pair of pairs)
+            next = next.split("](" + pair[0]).join("](" + pair[1]);
+        if (next !== content)
+            otherFile.setText(next);
     }
 
     function saveAs(path, content) {
@@ -164,17 +188,34 @@ Item {
             return;
         const slug = slugify(m[1]);
         if (slug)
-            _moveCurrent(dir + "/" + slug + ".md", true);
+            _move(currentPath, dir + "/" + slug + ".md", true);
     }
 
-    function _moveCurrent(target, uniquify) {
-        if (target === currentPath)
+    function _move(source, target, uniquify) {
+        if (!source || target === source)
             return;
+        _pendingMoves = _pendingMoves.concat([{
+                source: source,
+                target: target,
+                uniquify: uniquify
+            }]);
+        _nextMove();
+    }
+
+    function _nextMove() {
+        if (renameProc.running || _pendingMoves.length === 0)
+            return;
+        const job = _pendingMoves[0];
+        _pendingMoves = _pendingMoves.slice(1);
+        if (tabs.indexOf(job.source) < 0) {
+            _nextMove();
+            return;
+        }
         const moveAssets = 's="${1%.*}"; d="${t%.*}"; [ -d "$s" ] && [ ! -e "$d" ] && mv -n -- "$s" "$d"; printf %s "$t"';
-        renameProc.source = currentPath;
-        renameProc.target = target;
-        renameProc.index = currentIndex;
-        renameProc.command = uniquify ? ["sh", "-c", 't="$2"; b="${t%.md}"; n=2; while [ -e "$t" ]; do t="$b-$n.md"; n=$((n+1)); done; mv -n -- "$1" "$t" || exit 1; ' + moveAssets, "sh", currentPath, target] : ["sh", "-c", 't="$2"; [ -e "$t" ] && exit 3; mv -n -- "$1" "$t" || exit 1; ' + moveAssets, "sh", currentPath, target];
+        const pick = job.uniquify ? 't="$2"; b="${t%.md}"; n=2; while [ -e "$t" ]; do t="$b-$n.md"; n=$((n+1)); done; ' : 't="$2"; [ -e "$t" ] && exit 3; ';
+        renameProc.source = job.source;
+        renameProc.target = job.target;
+        renameProc.command = ["sh", "-c", pick + 'mv -n -- "$1" "$t" || exit 1; ' + moveAssets, "sh", job.source, job.target];
         renameProc.running = true;
     }
 
@@ -246,27 +287,39 @@ Item {
         }
     }
 
+    FileView {
+        id: otherFile
+        blockLoading: true
+        blockWrites: true
+        atomicWrites: true
+        printErrors: false
+    }
+
     Process {
         id: renameProc
         property string source: ""
         property string target: ""
-        property int index: -1
         stdout: StdioCollector {
             id: renameOut
         }
         onExited: code => {
-            if (code !== 0)
+            if (code !== 0) {
+                root.renameFailed(code === 3 ? "Ya existe una nota llamada «" + root.titleOf(target) + "»" : "No se pudo renombrar la nota");
+                Qt.callLater(root._nextMove);
                 return;
+            }
             const newPath = renameOut.text.trim() || target;
-            const next = root.tabs.slice();
-            if (index >= 0 && index < next.length) {
+            const index = root.tabs.indexOf(source);
+            if (index >= 0) {
+                const next = root.tabs.slice();
                 next[index] = newPath;
                 root.tabs = next;
             }
-            if (index === root.currentIndex)
+            if (fileView.path === source)
                 fileView.path = newPath;
             root.saveSession();
             root.moved(source, newPath);
+            Qt.callLater(root._nextMove);
         }
     }
 }
