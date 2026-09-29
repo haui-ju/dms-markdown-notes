@@ -291,7 +291,7 @@ function prepare(md) {
         const before = lines.slice(cursor, f.start);
         out.push(...before);
         const previous = _lastContent(out);
-        if (previous === null || (lastFenceEnd >= 0 && before.every(_isBlank) && _isFence(previous))) {
+        if (previous === null || _isRule(previous) || (lastFenceEnd >= 0 && before.every(_isBlank) && _isFence(previous))) {
             if (out.length > 0 && !_isBlank(out[out.length - 1]))
                 out.push("");
             out.push(BLANK, "");
@@ -306,6 +306,10 @@ function prepare(md) {
     if (tail.every(_isBlank))
         out.push("", BLANK);
     return out.join("\n");
+}
+
+function _isRule(line) {
+    return /^\s*(- - -|---+|\*\*\*+|___+)\s*$/.test(line);
 }
 
 function _isFence(line) {

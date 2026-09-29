@@ -2,6 +2,13 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). El proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Corregido
+
+- Los bloques de código no funcionaban (sin fondo, botones ni teclas propias) en notas con una tabla, una imagen o un separador antes del bloque.
+- Un separador justo encima de un bloque de código desaparecía al guardar.
+
 ## [0.5.0] - 2026-09-29
 
 ### Añadido

@@ -35,6 +35,52 @@ Item {
             return first;
         }
 
+        function test_block_detected_after_table() {
+            subject.load("a\n\n|A|B|\n|-|-|\n|1|2|\n\n```\nx\n```");
+            compare(subject.code.blocks.length, 1);
+            compare(subject.code.text(0), "x");
+        }
+
+        function test_block_detected_after_image() {
+            subject.load("a\n\n![](nope/x.png)\n\n```\nx\n```");
+            compare(subject.code.blocks.length, 1);
+        }
+
+        function test_rule_before_block_is_kept() {
+            subject.load("a\n\n---\n\n```\nx\n```");
+            compare(subject.code.blocks.length, 1);
+            verify(/^a\n\n- - -\n\u00a0\n\n```\nx\n```/.test(md()), JSON.stringify(md()));
+            subject.load(subject.markdown());
+            verify(md().indexOf("- - -") >= 0, md());
+        }
+
+        function test_rule_then_code_command() {
+            type("a\n---\n");
+            subject.runCommand("code");
+            type("x");
+            compare(subject.code.blocks.length, 1);
+            compare(subject.code.text(0), "x");
+            verify(md().indexOf("- - -") >= 0, md());
+        }
+
+        function test_blank_between_rule_and_block_is_protected() {
+            subject.load("a\n\n---\n\n```\nx\n```");
+            const p = subject.plain().indexOf("\u00a0");
+            subject.cursorPosition = p + 1;
+            keyClick(Qt.Key_Backspace);
+            verify(md().indexOf("- - -") >= 0, md());
+            compare(subject.code.blocks.length, 1);
+        }
+
+        function test_typing_block_in_mixed_note() {
+            subject.load("# Hola\n\n- - -\n- item\n\n|A|B|\n|-|-|\n|1|2|\n\n\n\u00a0\n\n- Imagen\n\n![](nope/x.png)\n\n\u00a0");
+            subject.cursorPosition = subject.length;
+            type("```\nx = 1\ny = 2");
+            compare(subject.code.blocks.length, 1);
+            compare(subject.code.text(0), "x = 1\ny = 2");
+            verify(block() !== null);
+        }
+
         function test_fence_then_typing_stays_inside() {
             type("```\nx = 1\ny = 2");
             compare(subject.code.text(0), "x = 1\ny = 2");

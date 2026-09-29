@@ -207,7 +207,7 @@ function blocks(md) {
 }
 
 function norm(s) {
-    return s.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\\(.)/g, "$1").replace(/[*_`~\u00A0\s\uE000]+/g, "");
+    return s.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\\(.)/g, "$1").replace(/[*_`~\u00A0\s\uE000\uFFFC]+/g, "");
 }
 
 function decorations(md, plain) {
@@ -237,6 +237,10 @@ function decorations(md, plain) {
         if (i < plain.length && !isBoundary(plain.charCodeAt(i)))
             continue;
         const text = plain.substring(start, i);
+        if (text === "" && start > 0 && plain.charCodeAt(start - 1) === Tables.TABLE_END) {
+            start = i + 1;
+            continue;
+        }
         while (list[j] && list[j].pad && text !== "")
             j++;
         const b = list[j];
@@ -282,7 +286,8 @@ function plainParts(plain) {
     for (let i = 0; i <= plain.length; i++) {
         if (i < plain.length && !isBoundary(plain.charCodeAt(i)))
             continue;
-        parts.push(plain.substring(start, i));
+        if (i > start || start === 0 || plain.charCodeAt(start - 1) !== Tables.TABLE_END)
+            parts.push(plain.substring(start, i));
         start = i + 1;
     }
     return parts;

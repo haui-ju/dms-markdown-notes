@@ -49,6 +49,11 @@ QtObject {
         return null;
     }
 
+    function _afterRule(start) {
+        const d = editor.decorations();
+        return start > 0 && d !== null && d.rules.indexOf(editor.blockRange(start - 1).start) >= 0;
+    }
+
     function blankLine(pos) {
         const block = editor.blockRange(pos);
         if (block.text !== Md.BLANK)
@@ -61,7 +66,7 @@ QtObject {
             before: before,
             after: after,
             last: block.end >= editor.length,
-            needed: (before !== null && (after !== null || block.end >= editor.length)) || (after !== null && block.start === 0)
+            needed: (before !== null && (after !== null || block.end >= editor.length)) || (after !== null && (block.start === 0 || _afterRule(block.start)))
         };
     }
 
