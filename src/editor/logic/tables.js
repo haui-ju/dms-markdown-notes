@@ -5,6 +5,14 @@ var CELL = 0xFDD0;
 var TABLE_END = 0xFDD1;
 var DEFAULT_ROWS = 3;
 var DEFAULT_COLUMNS = 3;
+var DENSITIES = ["compacto", "normal", "amplio"];
+var PADDING = {
+    compacto: 2,
+    normal: 5,
+    amplio: 10
+};
+var MIN_COLUMN = 5;
+var MIN_WIDTH = 15;
 
 function isRow(line) {
     return /^\s*\|/.test(line);
@@ -93,53 +101,176 @@ function parse(lines, range) {
 }
 
 function serialize(rows) {
-    const line = r => "| " + r.map(c => c === "" ? BLANK : c).join(" | ") + " |";
+    const line = r => "| " + r.join(" | ") + " |";
     const body = rows.length > 1 ? rows.slice(1) : [rows[0].map(() => "")];
     return [line(rows[0]), "| " + rows[0].map(() => "---").join(" | ") + " |"].concat(body.map(line));
+}
+
+function defaultLayout(cols) {
+    return {
+        cols: cols || 0,
+        width: 0,
+        columns: [],
+        density: "normal"
+    };
+}
+
+function copyLayout(layout) {
+    return {
+        cols: layout.cols,
+        width: layout.width,
+        columns: layout.columns.slice(),
+        density: layout.density
+    };
+}
+
+function isDefaultLayout(layout) {
+    return !layout.width && layout.columns.length === 0 && layout.density === "normal";
+}
+
+function isLayoutLine(line) {
+    return /^\s*<!--\s*tabla:.*-->\s*$/.test(line);
+}
+
+function normalizeColumns(values) {
+    const total = values.reduce((a, b) => a + b, 0);
+    const out = values.map(v => Math.max(1, Math.round(v / total * 100)));
+    const widest = out.indexOf(Math.max(...out));
+    out[widest] += 100 - out.reduce((a, b) => a + b, 0);
+    return out;
+}
+
+function equalColumns(cols) {
+    return normalizeColumns(Array(cols).fill(1));
+}
+
+function parseLayout(line, cols) {
+    const layout = defaultLayout(cols);
+    const body = line.replace(/^\s*<!--\s*tabla:/, "").replace(/-->\s*$/, "").trim();
+    for (const part of body.split(/\s+/)) {
+        const eq = part.indexOf("=");
+        const key = part.substring(0, eq);
+        const value = part.substring(eq + 1);
+        if (key === "ancho") {
+            const n = Math.round(Number(value));
+            if (n >= MIN_WIDTH && n <= 100)
+                layout.width = n;
+        } else if (key === "columnas") {
+            const values = value.split(",").map(Number);
+            if (values.length === cols && values.every(n => n > 0))
+                layout.columns = normalizeColumns(values);
+        } else if (key === "alto" && DENSITIES.indexOf(value) >= 0) {
+            layout.density = value;
+        }
+    }
+    return layout;
+}
+
+function layoutLine(layout) {
+    const parts = [];
+    if (layout.width)
+        parts.push("ancho=" + layout.width);
+    if (layout.columns.length)
+        parts.push("columnas=" + layout.columns.join(","));
+    if (layout.density !== "normal")
+        parts.push("alto=" + layout.density);
+    return "<!-- tabla: " + parts.join(" ") + " -->";
+}
+
+function layoutInsertColumn(layout, at) {
+    const next = copyLayout(layout);
+    next.cols++;
+    if (next.columns.length) {
+        next.columns.splice(Math.max(0, Math.min(at, next.columns.length)), 0, 100 / layout.cols);
+        next.columns = normalizeColumns(next.columns);
+    }
+    return next;
+}
+
+function layoutRemoveColumn(layout, at) {
+    const next = copyLayout(layout);
+    next.cols--;
+    if (next.columns.length) {
+        next.columns.splice(at, 1);
+        next.columns = next.columns.length ? normalizeColumns(next.columns) : [];
+    }
+    return next;
+}
+
+function nextDensity(density) {
+    return DENSITIES[(DENSITIES.indexOf(density) + 1) % DENSITIES.length];
+}
+
+function _escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function inlineHtml(text) {
+    const saved = [];
+    const keep = html => "\uE001" + (saved.push(html) - 1) + "\uE002";
+    let s = text.replace(/`([^`]+)`/g, (m, code) => keep("<code>" + _escapeHtml(code) + "</code>"));
+    s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|>~<])/g, (m, ch) => keep(_escapeHtml(ch)));
+    s = _escapeHtml(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, url) => "<a href=\"" + url + "\">" + label + "</a>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/__(.+?)__/g, "<b>$1</b>");
+    s = s.replace(/~~(.+?)~~/g, "<s>$1</s>");
+    s = s.replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/(^|\W)_(.+?)_(?=\W|$)/g, "$1<i>$2</i>");
+    return s.replace(/\uE001(\d+)\uE002/g, (m, i) => saved[Number(i)]);
+}
+
+function htmlTable(rows, layout, style) {
+    const widths = layout.columns.length === rows[0].length ? layout.columns : null;
+    const pad = PADDING[layout.density] || PADDING.normal;
+    const border = style && style.border ? style.border : "#808080";
+    const attrs = " border=\"1\" cellspacing=\"0\" cellpadding=\"" + pad + "\" style=\"border-collapse: collapse; border-color: " + border + "\"" + (layout.width ? " width=\"" + layout.width + "%\"" : "");
+    const head = rows[0].map((c, i) => "<th align=\"left\"" + (widths ? " width=\"" + widths[i] + "%\"" : "") + ">" + (c === "" ? "&nbsp;" : inlineHtml(c)) + "</th>").join("");
+    const body = (rows.length > 1 ? rows.slice(1) : [rows[0].map(() => "")]).map(r => "<tr>" + r.map(c => "<td>" + inlineHtml(c) + "</td>").join("") + "</tr>").join("");
+    return "<table" + attrs + "><tr>" + head + "</tr>" + body + "</table>";
 }
 
 function _isBlank(line) {
     return /^[ \t]*$/.test(line);
 }
 
-function _needsSeparator(previous, afterFence) {
-    return previous === null || afterFence || /^\s*>/.test(previous) || isRow(previous);
+function _lastContent(out) {
+    for (let i = out.length - 1; i >= 0; i--) {
+        if (!_isBlank(out[i]))
+            return out[i];
+    }
+    return null;
 }
 
-function prepare(md) {
+function prepare(md, style) {
+    const layouts = [];
     if (md.indexOf("|") < 0)
-        return md;
+        return {
+            text: md,
+            layouts: layouts
+        };
     const lines = md.split("\n");
     const ranges = find(lines);
-    if (ranges.length === 0)
-        return md;
     const out = [];
     let cursor = 0;
     for (const range of ranges) {
-        let previous = null;
-        let closedFence = false;
-        let fence = false;
-        for (let i = 0; i < range.start; i++) {
-            if (/^\s*```/.test(lines[i]))
-                fence = !fence;
-            if (!_isBlank(lines[i])) {
-                previous = lines[i];
-                closedFence = !fence && /^\s*```/.test(lines[i]);
-            }
-        }
-        out.push(...lines.slice(cursor, range.start));
-        if (_needsSeparator(previous, closedFence)) {
+        const rows = parse(lines, range);
+        const hasLayout = range.start > cursor && isLayoutLine(lines[range.start - 1]);
+        const layout = hasLayout ? parseLayout(lines[range.start - 1], rows[0].length) : defaultLayout(rows[0].length);
+        layouts.push(layout);
+        out.push(...lines.slice(cursor, hasLayout ? range.start - 1 : range.start));
+        const previous = _lastContent(out);
+        if (previous === null || /^<table[ >]/.test(previous)) {
             _gap(out);
             out.push(BLANK);
         }
         _gap(out);
-        out.push(...serialize(parse(lines, range)));
-        if (range.end < lines.length && !_isBlank(lines[range.end]))
-            out.push("");
+        out.push(htmlTable(rows, layout, style), "");
         cursor = range.end;
     }
     out.push(...lines.slice(cursor));
-    return out.join("\n");
+    return {
+        text: out.join("\n"),
+        layouts: layouts
+    };
 }
 
 function _gap(out) {
@@ -147,13 +278,32 @@ function _gap(out) {
         out.push("");
 }
 
-function _padRanges(lines, ranges) {
+function _alignLayouts(layouts, colsList) {
+    if (layouts.length === colsList.length && layouts.every((l, i) => l.cols === colsList[i]))
+        return layouts;
+    const out = [];
+    let j = 0;
+    colsList.forEach((cols, t) => {
+        while (j < layouts.length && layouts[j].cols !== cols && layouts.length - j > colsList.length - t)
+            j++;
+        if (j < layouts.length && layouts[j].cols === cols)
+            out.push(layouts[j++]);
+        else
+            out.push(defaultLayout(cols));
+    });
+    return out;
+}
+
+function _finishRanges(lines, ranges, layouts) {
+    const aligned = _alignLayouts(layouts || [], ranges.map(r => splitRaw(lines[r.start + 1]).length));
     for (let t = ranges.length - 1; t >= 0; t--) {
         const range = ranges[t];
         if (range.end < lines.length && !_isBlank(lines[range.end]))
             lines.splice(range.end, 0, "");
+        const insert = isDefaultLayout(aligned[t]) ? [] : [layoutLine(aligned[t])];
         if (range.start > 0 && !_isBlank(lines[range.start - 1]))
-            lines.splice(range.start, 0, "");
+            insert.unshift("");
+        lines.splice(range.start, 0, ...insert);
     }
     return lines;
 }
@@ -171,7 +321,7 @@ function _rejoin(segments, expected) {
     return cells;
 }
 
-function repair(md, plain) {
+function repair(md, plain, layouts) {
     if (md.indexOf("|") < 0)
         return md;
     const lines = md.split("\n");
@@ -194,7 +344,7 @@ function repair(md, plain) {
             lines[lineIndex] = "| " + _rejoin(segments, expected).join(" | ") + " |";
         });
     });
-    return _padRanges(lines, ranges).join("\n");
+    return _finishRanges(lines, ranges, layouts).join("\n");
 }
 
 function headerLabel(index) {

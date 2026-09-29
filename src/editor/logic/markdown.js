@@ -68,7 +68,7 @@ function parseLine(line) {
 }
 
 function isStructural(line) {
-    return /^\s*([-*+]|\d+[.)])\s/.test(line) || /^#{1,6}\s/.test(line) || /^>/.test(line) || /^(```|---|- - -)/.test(line) || Tables.isRow(line);
+    return /^\s*([-*+]|\d+[.)])\s/.test(line) || /^#{1,6}\s/.test(line) || /^>/.test(line) || /^(```|---|- - -)/.test(line) || Tables.isRow(line) || Tables.isLayoutLine(line);
 }
 
 function joinParagraph(lines, idx) {
@@ -133,6 +133,10 @@ function blocks(md) {
                 type: "code",
                 text: line
             });
+            continue;
+        }
+        if (Tables.isLayoutLine(line)) {
+            para = null;
             continue;
         }
         if (tableLines.has(index)) {

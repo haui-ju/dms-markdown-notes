@@ -7,6 +7,8 @@ QtObject {
 
     required property var editor
     property var info: null
+    property var geometries: []
+    property string _geometryKey: ""
     property int _revision: -1
     property string _plain: ""
     property var _model: null
@@ -29,6 +31,38 @@ QtObject {
         return _model;
     }
 
+    function _context(m, tableIndex, cell) {
+        const range = m.ranges[tableIndex];
+        const rows = Tables.parse(m.lines, range);
+        const cols = rows[0].length;
+        const span = m.spans[tableIndex];
+        if (span.cells.length !== rows.length * cols)
+            return null;
+        const hasLayout = range.start > 0 && Tables.isLayoutLine(m.lines[range.start - 1]);
+        return {
+            table: tableIndex,
+            cell: cell,
+            row: Math.floor(cell / cols),
+            col: cell % cols,
+            rows: rows,
+            cols: cols,
+            span: span,
+            range: range,
+            lines: m.lines,
+            layoutStart: hasLayout ? range.start - 1 : range.start,
+            layout: hasLayout ? Tables.parseLayout(m.lines[range.start - 1], cols) : Tables.defaultLayout(cols)
+        };
+    }
+
+    function contextOf(tableIndex) {
+        if (editor.sourceMode)
+            return null;
+        const m = model();
+        if (!m.ok || tableIndex < 0 || tableIndex >= m.spans.length)
+            return null;
+        return _context(m, tableIndex, 0);
+    }
+
     function locate(pos) {
         if (editor.sourceMode)
             return null;
@@ -36,25 +70,7 @@ QtObject {
         if (!m.ok || m.spans.length === 0)
             return null;
         const hit = Tables.locate(m.spans, pos);
-        if (!hit)
-            return null;
-        const range = m.ranges[hit.table];
-        const rows = Tables.parse(m.lines, range);
-        const cols = rows[0].length;
-        const span = m.spans[hit.table];
-        if (span.cells.length !== rows.length * cols)
-            return null;
-        return {
-            table: hit.table,
-            cell: hit.cell,
-            row: Math.floor(hit.cell / cols),
-            col: hit.cell % cols,
-            rows: rows,
-            cols: cols,
-            span: span,
-            range: range,
-            lines: m.lines
-        };
+        return hit ? _context(m, hit.table, hit.cell) : null;
     }
 
     function locateSelection() {
@@ -78,8 +94,61 @@ QtObject {
             rows: ctx.rows.length,
             cols: ctx.cols,
             top: first.y,
-            bottom: last.y + last.height
+            bottom: last.y + last.height,
+            fullWidth: ctx.layout.width === 100,
+            density: ctx.layout.density
         };
+    }
+
+    function _measureTable(m, t) {
+        const ctx = _context(m, t, 0);
+        if (!ctx)
+            return null;
+        const span = ctx.span;
+        const n = ctx.cols;
+        const pad = Tables.PADDING[ctx.layout.density] + 1;
+        const lefts = [];
+        for (let c = 0; c < n; c++)
+            lefts.push(editor.positionToRectangle(span.cells[c].start).x - pad);
+        let bottom = 0;
+        let contentRight = 0;
+        span.cells.forEach((cell, k) => {
+            const r = editor.positionToRectangle(cell.end);
+            bottom = Math.max(bottom, r.y + r.height);
+            if (k % n === n - 1)
+                contentRight = Math.max(contentRight, r.x);
+        });
+        const available = Math.max(1, editor.width - 2 * lefts[0]);
+        const layout = ctx.layout;
+        let right = contentRight + pad;
+        if (layout.width)
+            right = lefts[0] + available * layout.width / 100;
+        else if (layout.columns.length === n && n > 1)
+            right = lefts[0] + (lefts[n - 1] - lefts[0]) * 100 / (100 - layout.columns[n - 1]);
+        return {
+            table: t,
+            top: editor.positionToRectangle(span.cells[0].start).y - pad,
+            bottom: bottom + pad,
+            edges: lefts.concat([Math.max(right, lefts[n - 1] + pad * 2)]),
+            available: available
+        };
+    }
+
+    function measure() {
+        const m = editor.sourceMode ? null : model();
+        const out = [];
+        if (m && m.ok) {
+            for (let t = 0; t < m.spans.length; t++) {
+                const g = _measureTable(m, t);
+                if (g)
+                    out.push(g);
+            }
+        }
+        const key = JSON.stringify(out);
+        if (key === _geometryKey)
+            return;
+        _geometryKey = key;
+        geometries = out;
     }
 
     function focusCell(tableIndex, cellIndex, selectPlaceholder) {
@@ -94,15 +163,33 @@ QtObject {
         return true;
     }
 
-    function _commit(ctx, rows, row, col) {
+    function _splice(ctx, rows, layout) {
         const lines = ctx.lines.slice();
-        lines.splice(ctx.range.start, ctx.range.end - ctx.range.start, ...(rows ? Tables.serialize(rows) : []));
+        const block = rows ? (Tables.isDefaultLayout(layout) ? [] : [Tables.layoutLine(layout)]).concat(Tables.serialize(rows)) : [];
+        lines.splice(ctx.layoutStart, ctx.range.end - ctx.layoutStart, ...block);
+        return lines.join("\n");
+    }
+
+    function _commit(ctx, rows, row, col, layout) {
         const anchor = ctx.span.start;
-        editor.replaceMarkdown(lines.join("\n"), () => {
+        editor.replaceMarkdown(_splice(ctx, rows, layout || ctx.layout), () => {
             if (rows)
                 focusCell(ctx.table, row * rows[0].length + col, true);
             else
                 editor.cursorPosition = Math.min(anchor, editor.length);
+        });
+        return true;
+    }
+
+    function _commitLayout(ctx, layout) {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.replaceMarkdown(_splice(ctx, ctx.rows, layout), () => {
+            const max = editor.length;
+            if (end > start)
+                editor.select(Math.min(start, max), Math.min(end, max));
+            else
+                editor.cursorPosition = Math.min(start, max);
         });
         return true;
     }
@@ -135,7 +222,7 @@ QtObject {
     }
 
     function addColumn() {
-        return _withContext(ctx => _commit(ctx, Tables.insertColumn(ctx.rows, ctx.col + 1), ctx.row, ctx.col + 1));
+        return _withContext(ctx => _commit(ctx, Tables.insertColumn(ctx.rows, ctx.col + 1), ctx.row, ctx.col + 1, Tables.layoutInsertColumn(ctx.layout, ctx.col + 1)));
     }
 
     function removeRow() {
@@ -148,12 +235,66 @@ QtObject {
     function removeColumn() {
         return _withContext(ctx => {
             const rows = Tables.removeColumn(ctx.rows, ctx.col);
-            return _commit(ctx, rows, ctx.row, rows ? Math.min(ctx.col, rows[0].length - 1) : 0);
+            return _commit(ctx, rows, ctx.row, rows ? Math.min(ctx.col, rows[0].length - 1) : 0, rows ? Tables.layoutRemoveColumn(ctx.layout, ctx.col) : null);
         });
     }
 
     function remove() {
         return _withContext(ctx => _commit(ctx, null, 0, 0));
+    }
+
+    function toggleFullWidth() {
+        return _withContext(ctx => {
+            const layout = Tables.copyLayout(ctx.layout);
+            layout.width = layout.width === 100 ? 0 : 100;
+            if (!layout.width)
+                layout.columns = [];
+            return _commitLayout(ctx, layout);
+        });
+    }
+
+    function equalize() {
+        return _withContext(ctx => {
+            const layout = Tables.copyLayout(ctx.layout);
+            layout.columns = Tables.equalColumns(ctx.cols);
+            layout.width = layout.width || 100;
+            return _commitLayout(ctx, layout);
+        });
+    }
+
+    function cycleDensity() {
+        return _withContext(ctx => {
+            const layout = Tables.copyLayout(ctx.layout);
+            layout.density = Tables.nextDensity(layout.density);
+            return _commitLayout(ctx, layout);
+        });
+    }
+
+    function _percent(px, available) {
+        return Math.max(Tables.MIN_WIDTH, Math.min(100, Math.round(px / available * 100)));
+    }
+
+    function resize(tableIndex, edge, x) {
+        const ctx = contextOf(tableIndex);
+        const g = geometries.find(item => item.table === tableIndex);
+        if (!ctx || !g || edge < 1 || edge >= g.edges.length)
+            return false;
+        const edges = g.edges.slice();
+        const last = edges.length - 1;
+        const widths = () => Tables.normalizeColumns(edges.slice(1).map((e, i) => Math.max(1, e - edges[i])));
+        const layout = Tables.copyLayout(ctx.layout);
+        if (edge === last) {
+            layout.width = _percent(x - edges[0], g.available);
+            if (!layout.columns.length)
+                layout.columns = widths();
+        } else {
+            const min = (edges[last] - edges[0]) * Tables.MIN_COLUMN / 100;
+            edges[edge] = Math.max(edges[edge - 1] + min, Math.min(edges[edge + 1] - min, x));
+            layout.columns = widths();
+            if (!layout.width)
+                layout.width = _percent(edges[last] - edges[0], g.available);
+        }
+        return _commitLayout(ctx, layout);
     }
 
     function move(ctx, delta) {

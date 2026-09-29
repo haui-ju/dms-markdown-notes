@@ -58,7 +58,7 @@ TestCase {
     function test_serialize_roundtrip() {
         const rows = [["h1", "h2"], ["a", ""], ["", "b"]];
         const lines = Tables.serialize(rows);
-        compare(lines, ["| h1 | h2 |", "| --- | --- |", "| a | \u00a0 |", "| \u00a0 | b |"]);
+        compare(lines, ["| h1 | h2 |", "| --- | --- |", "| a |  |", "|  | b |"]);
         compare(Tables.parse(lines, Tables.find(lines)[0]), rows);
     }
 
@@ -131,37 +131,146 @@ TestCase {
     }
 
     function test_slash_filter_table_commands() {
-        compare(ids(Slash.filter(Slash.TABLE, "fila")), ["rowAdd", "rowRemove"]);
+        compare(ids(Slash.filter(Slash.TABLE, "fila")), ["rowAdd", "rowRemove", "density"]);
         compare(ids(Slash.filter(Slash.TABLE, "eliminar col")), ["columnRemove"]);
+        compare(ids(Slash.filter(Slash.TABLE, "equilibrar")), ["equalize"]);
+        compare(ids(Slash.filter(Slash.TABLE, "ancho")), ["fullWidth", "equalize"]);
     }
 
     function test_serialize_header_only_gets_body_row() {
-        compare(Tables.serialize([["a", "b"]]), ["| a | b |", "| --- | --- |", "| \u00a0 | \u00a0 |"]);
+        compare(Tables.serialize([["a", "b"]]), ["| a | b |", "| --- | --- |", "|  |  |"]);
     }
 
-    function test_prepare_fills_empty_cells_and_pads() {
-        const out = Tables.prepare("Hola\n\n| a | b | c |\n|---|---|---|\n| 1 |  |\n");
-        compare(out, "Hola\n\n| a | b | c |\n| --- | --- | --- |\n| 1 | \u00a0 | \u00a0 |\n");
+    readonly property var style: ({
+            border: "#888888"
+        })
+    readonly property string open: "<table border=\"1\" cellspacing=\"0\" cellpadding=\"5\" style=\"border-collapse: collapse; border-color: #888888\">"
+
+    function test_prepare_converts_tables_to_html() {
+        const out = Tables.prepare("Hola\n\n| a | b | c |\n|---|---|---|\n| 1 |  |\n", style);
+        compare(out.text, "Hola\n\n" + open + "<tr><th align=\"left\">a</th><th align=\"left\">b</th><th align=\"left\">c</th></tr><tr><td>1</td><td></td><td></td></tr></table>\n\n");
+        compare(out.layouts, [Tables.defaultLayout(3)]);
     }
 
-    function test_prepare_separates_tables_from_fences_quotes_tables_and_start() {
+    function test_prepare_empty_header_cells_get_nbsp() {
+        const out = Tables.prepare("x\n\n|  | b |\n|-|-|\n|  |  |\n", style).text;
+        verify(out.indexOf("<th align=\"left\">&nbsp;</th>") > 0, out);
+        verify(out.indexOf("<td></td><td></td>") > 0, out);
+    }
+
+    function test_prepare_header_only_gets_body_row() {
+        const out = Tables.prepare("x\n\n| a |\n|-|\n", style).text;
+        verify(out.indexOf("<tr><td></td></tr></table>") > 0, out);
+    }
+
+    function test_prepare_separates_only_start_and_adjacent_tables() {
         const t = "| a |\n| - |\n| 1 |";
-        compare(Tables.prepare(t), "\u00a0\n\n| a |\n| --- |\n| 1 |");
-        compare(Tables.prepare("```\nx\n```\n\n" + t), "```\nx\n```\n\n\u00a0\n\n| a |\n| --- |\n| 1 |");
-        compare(Tables.prepare("> q\n\n" + t), "> q\n\n\u00a0\n\n| a |\n| --- |\n| 1 |");
-        const two = Tables.prepare("x\n\n" + t + "\n\n" + t);
-        compare(two, "x\n\n| a |\n| --- |\n| 1 |\n\n\u00a0\n\n| a |\n| --- |\n| 1 |");
-    }
-
-    function test_prepare_is_idempotent() {
-        const src = "```\nx\n```\n\n| a | b |\n| - | - |\n| 1 |  |\n\n> q\n\n| c |\n| - |\n";
-        const once = Tables.prepare(src);
-        compare(Tables.prepare(once), once);
+        verify(Tables.prepare(t, style).text.startsWith("\u00a0\n\n<table"));
+        verify(Tables.prepare("```\nx\n```\n" + t, style).text.startsWith("```\nx\n```\n\n<table"));
+        verify(Tables.prepare("> q\n\n" + t, style).text.startsWith("> q\n\n<table"));
+        const two = Tables.prepare("x\n\n" + t + "\n\n" + t, style).text.split("\n").filter(l => l !== "");
+        compare(two.length, 4);
+        compare(two[2], "\u00a0");
     }
 
     function test_prepare_ignores_fenced_tables() {
         const src = "```\n| a |\n| - |\n```";
-        compare(Tables.prepare(src), src);
+        compare(Tables.prepare(src, style).text, src);
+        compare(Tables.prepare("sin tablas", style), {
+            text: "sin tablas",
+            layouts: []
+        });
+    }
+
+    function test_prepare_reads_and_strips_layout() {
+        const out = Tables.prepare("x\n\n<!-- tabla: ancho=100 columnas=40,30,30 alto=compacto -->\n| a | b | c |\n|-|-|-|\n| 1 | 2 | 3 |\n", style);
+        compare(out.layouts, [{
+                cols: 3,
+                width: 100,
+                columns: [40, 30, 30],
+                density: "compacto"
+            }]);
+        verify(out.text.indexOf("<!--") < 0);
+        verify(out.text.indexOf("cellpadding=\"2\"") > 0);
+        verify(out.text.indexOf(" width=\"100%\"") > 0);
+        verify(out.text.indexOf("<th align=\"left\" width=\"40%\">a</th>") > 0, out.text);
+    }
+
+    function test_parse_layout_rejects_garbage() {
+        compare(Tables.parseLayout("<!-- tabla: columnas=10,90 -->", 3).columns, []);
+        compare(Tables.parseLayout("<!-- tabla: columnas=a,b -->", 2).columns, []);
+        compare(Tables.parseLayout("<!-- tabla: columnas=0,10 -->", 2).columns, []);
+        compare(Tables.parseLayout("<!-- tabla: ancho=5 -->", 2).width, 0);
+        compare(Tables.parseLayout("<!-- tabla: ancho=300 -->", 2).width, 0);
+        compare(Tables.parseLayout("<!-- tabla: alto=raro -->", 2).density, "normal");
+        compare(Tables.parseLayout("<!-- tabla: -->", 2), Tables.defaultLayout(2));
+        compare(Tables.parseLayout("<!-- tabla: columnas=1,1,2 -->", 3).columns, [25, 25, 50]);
+        verify(!Tables.isLayoutLine("<!-- otra cosa -->"));
+        verify(Tables.isLayoutLine("  <!-- tabla: ancho=50 -->  "));
+    }
+
+    function test_layout_line_roundtrip() {
+        const layout = {
+            cols: 2,
+            width: 60,
+            columns: [30, 70],
+            density: "amplio"
+        };
+        const line = Tables.layoutLine(layout);
+        compare(line, "<!-- tabla: ancho=60 columnas=30,70 alto=amplio -->");
+        compare(Tables.parseLayout(line, 2), layout);
+        verify(Tables.isDefaultLayout(Tables.parseLayout(Tables.layoutLine(Tables.defaultLayout(2)), 2)));
+    }
+
+    function test_normalize_columns_sums_100() {
+        for (const values of [[1, 1, 1], [1, 2], [7, 7, 7, 7, 7, 7, 7], [0.1, 99.9], [50, 50, 1]]) {
+            const out = Tables.normalizeColumns(values);
+            compare(out.reduce((a, b) => a + b, 0), 100);
+            verify(out.every(n => n >= 1), JSON.stringify(out));
+        }
+        compare(Tables.equalColumns(4), [25, 25, 25, 25]);
+    }
+
+    function test_layout_column_ops() {
+        const layout = {
+            cols: 2,
+            width: 100,
+            columns: [30, 70],
+            density: "normal"
+        };
+        const added = Tables.layoutInsertColumn(layout, 1);
+        compare(added.cols, 3);
+        compare(added.columns.length, 3);
+        compare(added.columns.reduce((a, b) => a + b, 0), 100);
+        compare(layout.columns, [30, 70]);
+        compare(Tables.layoutRemoveColumn(layout, 0).columns, [100]);
+        compare(Tables.layoutInsertColumn(Tables.defaultLayout(2), 0).columns, []);
+        compare(Tables.nextDensity("normal"), "amplio");
+        compare(Tables.nextDensity("amplio"), "compacto");
+        compare(Tables.nextDensity("compacto"), "normal");
+    }
+
+    function test_inline_html() {
+        compare(Tables.inlineHtml("**b** *i* ~~s~~ `c|<` [l](u)"), "<b>b</b> <i>i</i> <s>s</s> <code>c|&lt;</code> <a href=\"u\">l</a>");
+        compare(Tables.inlineHtml("a \\| b <x> & \\*no\\*"), "a | b &lt;x&gt; &amp; *no*");
+        compare(Tables.inlineHtml("snake_case_name"), "snake_case_name");
+        compare(Tables.inlineHtml("[x](u\"onclick)"), "<a href=\"u&quot;onclick\">x</a>");
+    }
+
+    function test_repair_reinjects_layout_above_table() {
+        const layout = Tables.parseLayout("<!-- tabla: ancho=100 -->", 2);
+        const md = "x\n\n| a | b |\n|-|-|\n| 1 | 2 |\n";
+        const out = Tables.repair(md, "x\u2029\uFDD0a\uFDD0b\uFDD01\uFDD02\uFDD1", [layout]);
+        compare(out, "x\n\n<!-- tabla: ancho=100 -->\n| a | b |\n|-|-|\n| 1 | 2 |\n");
+    }
+
+    function test_repair_aligns_layouts_by_columns() {
+        const two = Tables.parseLayout("<!-- tabla: ancho=50 -->", 2);
+        const three = Tables.parseLayout("<!-- tabla: alto=amplio -->", 3);
+        const md = "| a | b | c |\n|-|-|-|\n| 1 | 2 | 3 |\n";
+        const plain = "\uFDD0a\uFDD0b\uFDD0c\uFDD01\uFDD02\uFDD03\uFDD1";
+        compare(Tables.repair(md, plain, [two, three]).split("\n")[0], "<!-- tabla: alto=amplio -->");
+        compare(Tables.repair(md, plain, [two]).split("\n")[0], "| a | b | c |");
     }
 
     function test_repair_rejoins_unescaped_pipes() {

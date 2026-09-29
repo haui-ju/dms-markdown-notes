@@ -51,8 +51,15 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - `/tabla` crea una tabla de 3×3 (encabezado + 2 filas) con "Columna 1" seleccionado para que empieces a escribir.
 - **Tab** / **Shift+Tab**: celda siguiente / anterior. Tab en la última celda crea una fila.
 - **Enter**: celda de abajo; en la última fila sale de la tabla.
-- Con el cursor dentro aparece una barrita para añadir fila, añadir columna, eliminar fila, eliminar columna o eliminar la tabla. Las mismas opciones salen al escribir `/` dentro de una celda.
-- Se guardan como tablas Markdown normales (`| a | b |`). Las celdas vacías se guardan con un espacio duro (NBSP) para que Qt no las fusione.
+- Con el cursor dentro aparece una barrita para añadir o eliminar filas y columnas, poner la tabla a ancho completo, igualar columnas, cambiar el alto de filas (compacto, normal o amplio) o eliminar la tabla. Las mismas opciones salen al escribir `/` dentro de una celda.
+- **Arrastrar**: pasa el ratón por el borde entre dos columnas (o por el borde derecho de la tabla) y arrastra para cambiar el ancho.
+- **Igualar columnas** reparte el ancho de la tabla a partes iguales; si la tabla era automática, pasa a ocupar el 100 %.
+- Se guardan como tablas Markdown normales (`| a | b |`). Si cambias anchos o alto, se añade un comentario invisible justo encima, que otros editores ignoran:
+
+  ```markdown
+  <!-- tabla: ancho=100 columnas=40,30,30 alto=compacto -->
+  | ID | Descripción | Total |
+  ```
 
 ## Atajos
 
@@ -79,6 +86,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Tras un autoformato no se puede deshacer con Ctrl+Z.
 - El formato dentro del encabezado de una tabla (negrita, código...) no se guarda: Qt lo descarta al escribir el Markdown.
 - Las tablas no admiten celdas combinadas ni varias líneas por celda, y la alineación de columnas (`:---:`) se pierde.
+- El alto se ajusta para toda la tabla, no fila a fila: Qt ignora la altura de las filas.
 - No hay bloques arrastrables.
 
 ## Desarrollo

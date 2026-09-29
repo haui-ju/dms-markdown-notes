@@ -176,12 +176,12 @@ Item {
             compare(table()[1], ["1", "x", ""]);
         }
 
-        function test_typing_into_blank_cell_drops_nbsp() {
+        function test_typing_into_blank_cell() {
             editor.load(sample);
             placeInCell(0, 2);
             verify(editor.table.addColumn());
             placeInCell(0, 4);
-            compare(cellText(0, 4), "\u00a0");
+            compare(cellText(0, 4), "");
             type("z");
             compare(cellText(0, 4), "z");
         }

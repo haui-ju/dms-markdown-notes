@@ -95,6 +95,24 @@ var TABLE = [
         keywords: "borrar quitar columna column"
     },
     {
+        id: "fullWidth",
+        label: "Ancho completo",
+        icon: "fit_width",
+        keywords: "expandir ancho completo 100 full width"
+    },
+    {
+        id: "equalize",
+        label: "Igualar columnas",
+        icon: "horizontal_distribute",
+        keywords: "equilibrar distribuir igualar columnas mismo ancho"
+    },
+    {
+        id: "density",
+        label: "Alto de filas",
+        icon: "density_medium",
+        keywords: "altura densidad compacto normal amplio filas"
+    },
+    {
         id: "tableRemove",
         label: "Eliminar tabla",
         icon: "delete",

@@ -12,6 +12,8 @@ TextEdit {
     property color accentColor: "#8ab4f8"
     property color checkMarkColor: "#000000"
     property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
+    property color tableBorderColor: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.3))
+    property var tableLayouts: []
     readonly property alias slash: slashController
     readonly property alias table: tableController
     property var _tasks: []
@@ -31,7 +33,7 @@ TextEdit {
 
     onTextChanged: {
         revision++;
-        markdownText = sourceMode ? text : Tables.repair(text, plain());
+        markdownText = sourceMode ? text : Tables.repair(text, plain(), tableLayouts);
         decorationTimer.restart();
         slashController.refresh();
         tableController.refresh();
@@ -81,6 +83,7 @@ TextEdit {
         _tasks = d ? d.tasks : [];
         _rules = d ? d.rules : [];
         tableController.refresh();
+        tableController.measure();
     }
 
     function decorations() {
@@ -89,9 +92,18 @@ TextEdit {
 
     function _assign(md) {
         if (md !== "") {
-            text = sourceMode ? md : Tables.prepare(md);
+            if (sourceMode) {
+                text = md;
+                return;
+            }
+            const prepared = Tables.prepare(md, {
+                border: tableBorderColor.toString()
+            });
+            tableLayouts = prepared.layouts;
+            text = prepared.text;
             return;
         }
+        tableLayouts = [];
         text = Md.MARKER;
         remove(0, length);
     }
@@ -359,6 +371,12 @@ TextEdit {
             return tableController.removeColumn();
         case "tableRemove":
             return tableController.remove();
+        case "fullWidth":
+            return tableController.toggleFullWidth();
+        case "equalize":
+            return tableController.equalize();
+        case "density":
+            return tableController.cycleDensity();
         default:
             return setBlockType(id, false);
         }

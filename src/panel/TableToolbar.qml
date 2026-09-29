@@ -10,6 +10,19 @@ PopupSurface {
     required property var editor
     readonly property var info: editor.table.info
     readonly property real gap: Theme.spacingXS
+    readonly property var densityIcons: ({
+            compacto: "density_small",
+            normal: "density_medium",
+            amplio: "density_large"
+        })
+
+    function iconFor(id, fallback) {
+        if (id === "density" && info)
+            return densityIcons[info.density] || fallback;
+        if (id === "fullWidth" && info && info.fullWidth)
+            return "width_normal";
+        return fallback;
+    }
 
     visible: info !== null && !editor.sourceMode
     width: actions.implicitWidth + Theme.spacingXS * 2
@@ -28,7 +41,8 @@ PopupSurface {
             delegate: IconButton {
                 required property var modelData
                 buttonSize: 28
-                iconName: modelData.icon
+                iconName: root.iconFor(modelData.id, modelData.icon)
+                highlighted: modelData.id === "fullWidth" && root.info !== null && root.info.fullWidth
                 iconColor: modelData.id === "tableRemove" ? Theme.error : Theme.surfaceText
                 tooltipText: modelData.label
                 onClicked: {
