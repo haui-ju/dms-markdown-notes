@@ -80,6 +80,17 @@ Rectangle {
                 }
             }
 
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                acceptedModifiers: Qt.NoModifier
+                onTapped: eventPoint => editor.activateWikiLinkAt(eventPoint.position.x, eventPoint.position.y)
+            }
+
+            HoverHandler {
+                id: linkHover
+                cursorShape: editor.wikiLinkAt(linkHover.point.position.x, linkHover.point.position.y) ? Qt.PointingHandCursor : Qt.IBeamCursor
+            }
+
             StyledText {
                 x: editor.leftPadding
                 visible: editor.length === 0 && !editor.sourceMode

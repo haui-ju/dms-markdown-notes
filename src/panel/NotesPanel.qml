@@ -207,6 +207,10 @@ Item {
             dialogs.pickImage();
         }
 
+        function onWikiLinkActivated(target) {
+            links.open(target, store.currentPath);
+        }
+
         function onImageActivated(pos, url, src, alt) {
             let name = src.split("/").pop();
             try {
@@ -220,6 +224,17 @@ Item {
         id: assets
         onImported: sources => {
             root.editor.insertImages(sources);
+            root.focusEditor();
+        }
+        onFailed: message => ToastService.showWarning(message)
+    }
+
+    NoteLinks {
+        id: links
+        dir: store.dir
+        onResolved: path => {
+            root.flushSave();
+            store.openPath(path);
             root.focusEditor();
         }
         onFailed: message => ToastService.showWarning(message)

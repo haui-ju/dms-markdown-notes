@@ -4,6 +4,7 @@ import "logic/tables.js" as Tables
 import "logic/code.js" as Code
 import "logic/paste.js" as Paste
 import "logic/images.js" as Images
+import "logic/links.js" as Links
 
 TextEdit {
     id: root
@@ -16,6 +17,7 @@ TextEdit {
     property color checkMarkColor: "#000000"
     property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
     property color quoteBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+    property color linkBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
     property color tableBorderColor: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.3))
     property var tableLayouts: []
     property color selectionTextColor: "#000000"
@@ -38,6 +40,7 @@ TextEdit {
     property var _tasks: []
     property var _rules: []
     property var _quotes: []
+    property var _links: []
     property string _frontMatter: ""
     property int _plainAfterFormatPos: -1
     property int _emptyHeadingPos: -1
@@ -74,6 +77,7 @@ TextEdit {
     signal rewriteStarted
     signal rewriteFinished
     signal imageActivated(int pos, string url, string src, string alt)
+    signal wikiLinkActivated(string target)
     signal imagePasteRequested
     signal imageFilesPasted(var paths)
     signal imageRequested
@@ -155,7 +159,7 @@ TextEdit {
             markdownText = Md.keepBlankLines(text);
         } else {
             const plainText = plain();
-            markdownText = _frontMatter + Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText));
+            markdownText = _frontMatter + Links.unescape(Md.unpadTrailingRule(Md.repairEmptyHeadings(Images.repair(Code.repair(Tables.repair(text, plainText, tableLayouts)), _imageSources), plainText)));
         }
         decorationTimer.restart();
         if (markdownText.indexOf("```") >= 0 || codeController.blocks.length > 0)
@@ -225,6 +229,13 @@ TextEdit {
     }
 
     Repeater {
+        model: root._links
+        delegate: WikiLinkDecoration {
+            editor: root
+        }
+    }
+
+    Repeater {
         model: root._tasks
         delegate: TaskDecoration {
             editor: root
@@ -250,6 +261,7 @@ TextEdit {
         _tasks = d ? d.tasks : [];
         _rules = d ? d.rules : [];
         _quotes = d ? d.quotes : [];
+        _links = d ? Links.parse(plain()).filter(link => !codeController.at(link.start)) : [];
         tableController.refresh();
         tableController.measure();
         codeController.measure();
@@ -1103,6 +1115,18 @@ TextEdit {
                 return null;
             return p.indent + p.bullet + " [" + (/x/i.test(p.task) ? " " : "x") + "] " + p.rest;
         });
+    }
+
+    function wikiLinkAt(x, y) {
+        return sourceMode ? null : Links.at(_links, positionAt(x, y));
+    }
+
+    function activateWikiLinkAt(x, y) {
+        const link = wikiLinkAt(x, y);
+        if (link === null)
+            return false;
+        wikiLinkActivated(link.target);
+        return true;
     }
 
     function isMarkerHit(x, y) {
