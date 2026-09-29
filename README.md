@@ -32,12 +32,13 @@ Igual que el Notepad de DMS: pestañas de notas abiertas (× cierra la pestaña 
 | `- ` o `* ` | Lista con viñetas |
 | `1. ` | Lista numerada |
 | `[] ` o `- [] ` | Checkbox (clic en la casilla para marcarla) |
-| `> ` | Cita |
+| `> ` | Cita (con barra y fondo, también vacía) |
 | `---` + Enter | Separador |
 | ```` ``` ```` + Enter | Bloque de código |
 | `**texto**`, `*texto*`, `` `texto` ``, `~~texto~~` | Negrita, cursiva, código, tachado |
 | Enter en un elemento vacío | Termina la lista |
 | Enter al final de un título | La línea siguiente es texto normal |
+| Enter al final de una cita | Otro párrafo de la cita; Enter en uno vacío sale de ella |
 | Retroceso al inicio de un título, cita o lista | Vuelve a texto normal |
 
 ## Menú `/`
@@ -130,6 +131,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - No hay bloques arrastrables.
 - El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio.
 - Un título dentro de una cita (`> # título`) sale de la cita al guardar, y un separador en la última línea de la nota se pierde: Qt no los escribe.
+- Qt lee `__texto__` igual que `_texto_` y lo guarda así; en el editor se ve igual, pero otros visores lo mostrarán en cursiva en vez de negrita. Usa `**texto**` para negrita.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.
 

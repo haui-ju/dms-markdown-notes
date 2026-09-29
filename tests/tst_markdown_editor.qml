@@ -322,6 +322,101 @@ Item {
             verify(d.quotes.length > 0);
         }
 
+        function quotes() {
+            editor.refreshDecorations();
+            return editor._quotes.length;
+        }
+
+        function test_empty_quote_is_kept_and_visible() {
+            editor.load("a");
+            editor.cursorPosition = 1;
+            type("\n> ");
+            compare(md(), "a\n\n> \u00a0");
+            compare(quotes(), 1);
+            editor.load(md());
+            compare(quotes(), 1);
+            editor.cursorPosition = editor.length;
+            type("hola");
+            compare(md(), "a\n\n> hola");
+            compare(quotes(), 1);
+        }
+
+        function test_slash_and_ctrl_quote_on_empty_line() {
+            editor.load("a\n");
+            editor.cursorPosition = 1;
+            type("\n/cita\n");
+            compare(md(), "a\n\n> \u00a0");
+            compare(quotes(), 1);
+            editor.load("a\n\n\u00a0");
+            editor.cursorPosition = editor.length;
+            editor.setBlockType("quote");
+            compare(md(), "a\n\n> \u00a0");
+        }
+
+        function test_erasing_quote_keeps_it() {
+            editor.load("a\n\n> ho\n\nb");
+            editor.cursorPosition = 4;
+            keyClick(Qt.Key_Backspace);
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "a\n\n> \u00a0\n\nb");
+            compare(quotes(), 1);
+            type("x");
+            compare(md(), "a\n\n> x\n\nb");
+            editor.cursorPosition = 2;
+            keyClick(Qt.Key_Delete);
+            compare(md(), "a\n\n> \u00a0\n\nb");
+        }
+
+        function test_deleting_selected_quote_text_keeps_quote() {
+            for (const key of [Qt.Key_Backspace, Qt.Key_Delete]) {
+                editor.load("a\n\n> hola\n\nb");
+                editor.select(2, 6);
+                keyClick(key);
+                compare(md(), "a\n\n> \u00a0\n\nb");
+                compare(quotes(), 1);
+            }
+        }
+
+        function test_empty_quote_undo_and_neighbours() {
+            editor.load("| a |\n|---|\n| 1 |\n\n> cita\n\n```js\nx\n```\n\n![](nada.png)\n\n> otra");
+            const d = editor.decorations();
+            verify(d !== null);
+            compare(d.quotes.length, 2);
+            compare(d.codes.length, 1);
+            editor.load("texto");
+            editor.cursorPosition = editor.length;
+            type("\n> ");
+            compare(md(), "texto\n\n> \u00a0");
+            keyClick(Qt.Key_Z, Qt.ControlModifier);
+            verify(md().indexOf(">") < 0, md());
+            keyClick(Qt.Key_Y, Qt.ControlModifier);
+            compare(md(), "texto\n\n> \u00a0");
+            compare(quotes(), 1);
+        }
+
+        function test_backspace_on_empty_quote_turns_it_into_text() {
+            editor.load("a\n\n> \u00a0\n\nb");
+            editor.cursorPosition = 3;
+            keyClick(Qt.Key_Backspace);
+            compare(md(), "a\n\n\u00a0\n\nb");
+            compare(quotes(), 0);
+        }
+
+        function test_enter_continues_quote_then_exits() {
+            editor.load("> uno");
+            editor.cursorPosition = editor.length;
+            keyClick(Qt.Key_Return);
+            compare(md(), "> uno\n> \n> \u00a0");
+            compare(quotes(), 1);
+            type("dos");
+            compare(md(), "> uno\n> \n> dos");
+            keyClick(Qt.Key_Return);
+            keyClick(Qt.Key_Return);
+            type("fuera");
+            compare(md(), "> uno\n> \n> dos\n\nfuera");
+            compare(quotes(), 1);
+        }
+
         function test_quote_decoration_covers_text() {
             editor.load("antes\n\n> una cita\n\ndespues");
             editor.refreshDecorations();

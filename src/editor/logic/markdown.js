@@ -5,6 +5,8 @@
 var MARKER = "\uE000";
 var BLANK = "\u00A0";
 var PARAGRAPH = 0x2029;
+var QUOTE_PREFIX = /^([ \t]*>[ \t]?)+/;
+var QUOTED_BLOCK = /^(\s*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?|#{1,6}[ \t]+)/;
 
 var INLINE_RULES = [
     {
@@ -136,7 +138,8 @@ function blocks(md) {
     let quoted = false;
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
-        if (!/^[ \t]*>/.test(line) && !(para && para.quote && line.trim() !== ""))
+        const lazy = para !== null && para.quote && line.trim() !== "";
+        if (!QUOTE_PREFIX.test(line) && !lazy)
             quoted = false;
         const f = fences[code];
         if (f && index >= f.start && index <= f.end) {
@@ -197,9 +200,9 @@ function blocks(md) {
             para = null;
             continue;
         }
-        const quote = /^[ \t]*>/.test(line);
-        const inner = line.replace(/^([ \t]*>[ \t]?)+/, "");
-        const opens = quote && /^(\s*([-*+]|\d+[.)])\s|#{1,6}[ \t])/.test(inner);
+        const quote = QUOTE_PREFIX.test(line);
+        const inner = line.replace(QUOTE_PREFIX, "");
+        const opens = quote && QUOTED_BLOCK.test(inner);
         if (para && !para.heading && (!quote || para.quote) && !opens) {
             para.text += " " + _quoteText(line.trim());
             continue;
@@ -221,9 +224,7 @@ function blocks(md) {
 }
 
 function _quoteText(line) {
-    if (!/^[ \t]*>/.test(line))
-        return line;
-    return line.replace(/^([ \t]*>[ \t]?)+/, "").replace(/^(\s*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?|#{1,6}[ \t]+)/, "");
+    return QUOTE_PREFIX.test(line) ? line.replace(QUOTE_PREFIX, "").replace(QUOTED_BLOCK, "") : line;
 }
 
 function norm(s) {

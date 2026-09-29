@@ -792,7 +792,7 @@ TextEdit {
             if (/^\d+[.)]$/.test(prefix))
                 return prefix.replace(")", ".") + " " + after;
             if (prefix === ">")
-                return "> " + after;
+                return _quoteLine(after);
             return "- [" + state + "] " + after;
         });
         _armEmptyHeading(ok && /^#{1,3}$/.test(prefix) ? prefix.length : 0);
@@ -832,7 +832,13 @@ TextEdit {
             const next = blank && blank.needed ? Md.BLANK + Md.MARKER : Md.MARKER;
             return rewriteLineAt(cursorPosition, (line, p) => p.list || /^(#{1,6}\s|>)/.test(line) ? "\n" + Md.MARKER : Md.BLANK + "\n\n" + next);
         }
-        return rewriteLineAt(cursorPosition, line => /^#{1,6}\s/.test(line) ? line.replace(Md.MARKER, "") + "\n\n" + Md.MARKER : null);
+        return rewriteLineAt(cursorPosition, line => {
+            if (/^#{1,6}\s/.test(line))
+                return line.replace(Md.MARKER, "") + "\n\n" + Md.MARKER;
+            if (/^>/.test(line) && !/^>[ \t]*(([-*+]|\d+[.)])[ \t]|#)/.test(line))
+                return line.replace(Md.MARKER, "") + "\n>\n" + _quoteLine(Md.MARKER);
+            return null;
+        });
     }
 
     function clearBlankLine() {
@@ -843,6 +849,9 @@ TextEdit {
     }
 
     function tryDeleteShortcut() {
+        const block = currentBlock();
+        if (block.text.length === 1 && block.text !== Md.BLANK && cursorPosition === block.start && _quoteAt(block.start))
+            return _blankQuote(block);
         const blank = codeController.blankLine(cursorPosition);
         if (!blank)
             return false;
@@ -860,6 +869,12 @@ TextEdit {
 
     function tryBackspaceShortcut() {
         const block = currentBlock();
+        if (block.text.length === 1 && _quoteAt(block.start)) {
+            if (block.text === Md.BLANK)
+                return rewriteLineAt(cursorPosition, line => /^>/.test(line) ? Md.stripBlockPrefix(line) : null);
+            if (cursorPosition === block.end)
+                return _blankQuote(block);
+        }
         const blank = codeController.blankLine(cursorPosition);
         if (blank && blank.before) {
             const target = blank.before.contentEnd;
@@ -891,6 +906,32 @@ TextEdit {
                 return p.rest;
             return /^(#{1,6}\s+|>\s?)/.test(line) ? Md.stripBlockPrefix(line) : null;
         });
+    }
+
+    function _quoteLine(rest) {
+        return "> " + (rest.replace(Md.MARKER, "").trim() === "" ? Md.BLANK + Md.MARKER : rest);
+    }
+
+    function _quoteAt(pos) {
+        const d = decorations();
+        return d !== null && d.quotes.some(q => pos >= q.start && pos <= q.end);
+    }
+
+    function _blankQuote(block) {
+        _loading = true;
+        remove(block.start, block.end);
+        insert(block.start, Md.BLANK);
+        _loading = false;
+        cursorPosition = block.start + 1;
+        edited();
+        return true;
+    }
+
+    function _clearQuoteSelection() {
+        const block = blockRange(selectionStart);
+        if (selectionStart !== block.start || selectionEnd !== block.end || block.text === Md.BLANK || !_quoteAt(block.start))
+            return false;
+        return _blankQuote(block);
     }
 
     function _armEmptyHeading(level) {
@@ -985,7 +1026,7 @@ TextEdit {
             case "task":
                 return p.list && p.task && toggle !== false ? indent + "- " + rest : indent + "- [ ] " + rest;
             case "quote":
-                return "> " + rest;
+                return _quoteLine(rest);
             default:
                 return rest;
             }
@@ -1196,6 +1237,11 @@ TextEdit {
             clearBlankLine();
             if (event.text === "/" && slashController.canOpenAt(cursorPosition))
                 slashController.open(cursorPosition);
+        }
+
+        if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) && !alt && !collapsed && _clearQuoteSelection()) {
+            event.accepted = true;
+            return;
         }
 
         if (event.key === Qt.Key_Backspace && !alt && collapsed) {
