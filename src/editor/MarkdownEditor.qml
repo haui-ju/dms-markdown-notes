@@ -48,8 +48,23 @@ TextEdit {
     property int _imageNextId: 1
     property real _imageLayoutWidth: 0
     readonly property real imageMaxWidth: width > 0 ? Math.max(64, width - leftPadding - rightPadding - 2) : 480
+    readonly property int historyLimit: 200
+    readonly property bool canUndo: _undoStack.length > 0 || _groupOpen
+    readonly property bool canRedo: _redoStack.length > 0 && !_groupOpen
+    property var _undoStack: []
+    property var _redoStack: []
+    property var _committed: ({
+            md: "",
+            start: 0,
+            end: 0
+        })
+    property bool _groupOpen: false
+    property string _groupKind: ""
+    property bool _restoring: false
+    property int _groupCaret: -1
 
     signal edited
+    onEdited: _noteChange()
     signal rewriteStarted
     signal rewriteFinished
     signal imageActivated(int pos, string url, string src, string alt)
@@ -108,6 +123,12 @@ TextEdit {
         id: imageLayoutTimer
         interval: 150
         onTriggered: root._relayoutImages()
+    }
+
+    Timer {
+        id: historyTimer
+        interval: 1000
+        onTriggered: root._closeGroup()
     }
 
     Timer {
@@ -333,18 +354,156 @@ TextEdit {
             lines[img.line] = line.substring(0, img.index) + "![" + img.alt + "](" + src + img.title + ")" + line.substring(img.index + img.length);
         }
         const start = selectionStart;
+        const move = state => ({
+                md: state.md.split("](" + fromPrefix).join("](" + toPrefix),
+                start: state.start,
+                end: state.end
+            });
+        _closeGroup();
+        _restoring = true;
         replaceMarkdown(lines.join("\n"), () => cursorPosition = Math.min(start, length));
+        _restoring = false;
+        _undoStack = _undoStack.map(move);
+        _redoStack = _redoStack.map(move);
+        _committed = _state();
         return true;
     }
 
     function removeImageAt(pos) {
         if (plain().charAt(pos) !== "\ufffc")
             return false;
+        _closeGroup();
+        _markBefore();
         _loading = true;
         remove(pos, pos + 1);
         _loading = false;
         cursorPosition = pos;
         edited();
+        _closeGroup();
+        return true;
+    }
+
+    function _state() {
+        return {
+            md: markdown(),
+            start: selectionStart,
+            end: selectionEnd
+        };
+    }
+
+    function _markBefore() {
+        if (_groupOpen || _restoring)
+            return;
+        _committed.start = selectionStart;
+        _committed.end = selectionEnd;
+    }
+
+    function _noteChange() {
+        if (_restoring || _loading)
+            return;
+        if (!_groupOpen) {
+            if (_committed.md === markdown())
+                return;
+            _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
+            _redoStack = [];
+            _groupOpen = true;
+        }
+        historyTimer.restart();
+        Qt.callLater(_trackCaret);
+    }
+
+    function _trackCaret() {
+        if (_groupOpen)
+            _groupCaret = cursorPosition;
+    }
+
+    function _closeGroup() {
+        if (_restoring)
+            return;
+        historyTimer.stop();
+        _groupKind = "";
+        if (_groupOpen) {
+            _groupOpen = false;
+            _committed = _state();
+        } else if (_committed.md !== markdown()) {
+            _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
+            _redoStack = [];
+            _committed = _state();
+        }
+    }
+
+    function _groupAs(kind) {
+        const moved = selectionStart !== selectionEnd || cursorPosition !== _groupCaret;
+        if (_groupOpen && (moved || (_groupKind !== "" && _groupKind !== kind && !(_groupKind === "space" && kind === "insert"))))
+            _closeGroup();
+        _markBefore();
+        _groupKind = kind;
+    }
+
+    function _restore(state) {
+        slashController.close();
+        rewriteStarted();
+        _restoring = true;
+        _loading = true;
+        _assign(state.md);
+        const max = length;
+        if (state.end > state.start)
+            select(Math.min(state.start, max), Math.min(state.end, max));
+        else
+            cursorPosition = Math.min(state.start, max);
+        _loading = false;
+        _committed = _state();
+        edited();
+        _restoring = false;
+        rewriteFinished();
+    }
+
+    function undo() {
+        _closeGroup();
+        if (_undoStack.length === 0)
+            return false;
+        const target = _undoStack[_undoStack.length - 1];
+        _undoStack = _undoStack.slice(0, -1);
+        _redoStack = _redoStack.concat([_state()]);
+        _restore(target);
+        return true;
+    }
+
+    function redo() {
+        _closeGroup();
+        if (_redoStack.length === 0)
+            return false;
+        const target = _redoStack[_redoStack.length - 1];
+        _redoStack = _redoStack.slice(0, -1);
+        _undoStack = _undoStack.concat([_state()]).slice(-historyLimit);
+        _restore(target);
+        return true;
+    }
+
+    function resetHistory() {
+        historyTimer.stop();
+        _groupOpen = false;
+        _groupKind = "";
+        _undoStack = [];
+        _redoStack = [];
+        _committed = _state();
+    }
+
+    function historyState() {
+        _closeGroup();
+        return {
+            undo: _undoStack,
+            redo: _redoStack,
+            committed: _committed
+        };
+    }
+
+    function restoreHistory(state) {
+        if (!state || !state.committed || state.committed.md !== markdown())
+            return false;
+        _undoStack = state.undo;
+        _redoStack = state.redo;
+        _committed = _state();
         return true;
     }
 
@@ -398,13 +557,22 @@ TextEdit {
         remove(0, length);
     }
 
-    function load(md) {
+    function load(md, keepHistory) {
         slashController.close();
+        if (keepHistory)
+            _closeGroup();
         _imageSizes = {};
         _loading = true;
         _assign(md);
         _loading = false;
         cursorPosition = 0;
+        if (!keepHistory) {
+            resetHistory();
+        } else if (_committed.md !== markdown()) {
+            _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
+            _redoStack = [];
+            _committed = _state();
+        }
     }
 
     function markdown() {
@@ -415,6 +583,7 @@ TextEdit {
         if (on === sourceMode)
             return;
         slashController.close();
+        _closeGroup();
         const md = markdownText;
         const pos = cursorPosition;
         _loading = true;
@@ -422,6 +591,7 @@ TextEdit {
         _assign(md);
         _loading = false;
         cursorPosition = on ? 0 : Math.min(pos, length);
+        _committed = _state();
     }
 
     function plain() {
@@ -444,6 +614,8 @@ TextEdit {
     }
 
     function replaceMarkdown(md, placeCursor) {
+        _closeGroup();
+        _markBefore();
         slashController.close();
         rewriteStarted();
         _loading = true;
@@ -452,6 +624,7 @@ TextEdit {
         _loading = false;
         rewriteFinished();
         edited();
+        _closeGroup();
     }
 
     function _dropMarker() {
@@ -475,6 +648,8 @@ TextEdit {
     function rewriteAt(pos, fn, exact) {
         const block = blockRange(pos);
         const shift = (pos === block.start && block.text.length > 0) ? 1 : 0;
+        _closeGroup();
+        _markBefore();
         slashController.close();
         _loading = true;
         insert(pos + shift, Md.MARKER);
@@ -495,6 +670,7 @@ TextEdit {
         _loading = false;
         rewriteFinished();
         edited();
+        _closeGroup();
         return true;
     }
 
@@ -841,18 +1017,52 @@ TextEdit {
     }
 
     Keys.onShortcutOverride: event => {
-        if (slashController.active && event.key === Qt.Key_Escape)
+        if ((slashController.active && event.key === Qt.Key_Escape) || _isUndoKey(event))
             event.accepted = true;
     }
 
+    function _isUndoKey(event) {
+        const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
+        const alt = (event.modifiers & Qt.AltModifier) !== 0;
+        return ctrl && !alt && (event.key === Qt.Key_Z || event.key === Qt.Key_Y);
+    }
+
+    function _trackHistory(event, ctrl, alt, printable) {
+        const key = event.key;
+        if (printable)
+            _groupAs(event.text === " " ? "space" : "insert");
+        else if (key === Qt.Key_Backspace || key === Qt.Key_Delete)
+            _groupAs(ctrl ? "word" : (key === Qt.Key_Backspace ? "backspace" : "delete"));
+        else if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Tab || key === Qt.Key_Backtab || (ctrl && !alt && (key === Qt.Key_X || key === Qt.Key_V))) {
+            _closeGroup();
+            _markBefore();
+        } else if ([Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Home, Qt.Key_End, Qt.Key_PageUp, Qt.Key_PageDown].indexOf(key) >= 0)
+            _closeGroup();
+        else
+            _markBefore();
+    }
+
+    Keys.onReleased: _trackCaret()
+
     Keys.onPressed: event => {
-        if (sourceMode)
-            return;
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
         const alt = (event.modifiers & Qt.AltModifier) !== 0;
         const collapsed = selectionStart === selectionEnd;
         const printable = !ctrl && !alt && event.text.length === 1 && event.text.charCodeAt(0) >= 32;
+
+        if (_isUndoKey(event)) {
+            slashController.close();
+            if (event.key === Qt.Key_Y || shift)
+                redo();
+            else
+                undo();
+            event.accepted = true;
+            return;
+        }
+        _trackHistory(event, ctrl, alt, printable);
+        if (sourceMode)
+            return;
 
         if (slashController.active && slashController.handleKey(event)) {
             event.accepted = true;

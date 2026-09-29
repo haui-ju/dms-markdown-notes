@@ -14,6 +14,8 @@ Item {
     property bool showPathInfo: false
     property bool showMenu: false
     property bool confirmDelete: false
+    property var histories: ({})
+    property string historyPath: ""
 
     readonly property bool dirty: saveTimer.running
     readonly property alias store: store
@@ -81,6 +83,15 @@ Item {
     function onShown() {
         store.ensureTab();
         focusEditor();
+    }
+
+    function moveHistory(from, to) {
+        if (from in histories) {
+            histories[to] = histories[from];
+            delete histories[from];
+        }
+        if (historyPath === from)
+            historyPath = to;
     }
 
     function retargetAssets(from, to) {
@@ -173,16 +184,27 @@ Item {
     NotesStore {
         id: store
         notesDir: root.pluginData.notesDir || "~/Notes"
-        onMoved: (from, to) => root.retargetAssets(from, to)
+        onMoved: (from, to) => {
+            root.moveHistory(from, to);
+            root.retargetAssets(from, to);
+        }
         onNoteLoaded: content => {
+            if (root.historyPath !== "")
+                root.histories[root.historyPath] = root.editor.historyState();
             root.editor.load(content);
+            root.editor.restoreHistory(root.histories[store.currentPath]);
+            root.historyPath = store.currentPath;
+            for (const path in root.histories) {
+                if (store.tabs.indexOf(path) < 0)
+                    delete root.histories[path];
+            }
             root.closePopups();
         }
         onExternalChange: content => {
             if (saveTimer.running)
                 return;
             const pos = root.editor.cursorPosition;
-            root.editor.load(content);
+            root.editor.load(content, true);
             root.editor.cursorPosition = Math.min(pos, root.editor.length);
         }
     }

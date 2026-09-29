@@ -45,7 +45,7 @@ src/
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
   imports/qs/                   stubs mínimos de qs.Common y qs.Widgets para probar panel/
-  tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout,
+  tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout, history,
                                 code, paste, editor_view, images
 ```
 
@@ -128,6 +128,11 @@ flowchart LR
   - Rutas: relativas a la carpeta de la nota (`imageBaseDir`), codificadas con `Images.encodePath` (`encodeURI` + paréntesis). Al renombrar o mover la nota, `NotesStore.moved` → `retargetImages(viejo/, nuevo/)`.
   - Portapapeles: un portapapeles solo con espacios o vacío en texto emite `imagePasteRequested`; `NoteAssets` lee `dms clipboard history --json`, y si la entrada más reciente es imagen la guarda con `dms clipboard get ID | base64 -d`. Rutas de imagen copiadas emiten `imageFilesPasted`. No hay `wl-paste`.
   - El visor (`ImageViewerModal`) usa `useOverlayLayer` para quedar sobre el panel lateral, y mide la imagen con el `Image` de su contenido: un `Image` fuera de una ventana no carga.
+- **Deshacer propio:** el undo de Qt se vacía en cada asignación de `text` y guarda los marcadores, así que Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z los maneja `MarkdownEditor` (también en `onShortcutOverride`).
+  - Pila de estados `{md, start, end}` (`_undoStack`, `_redoStack`, `_committed`). `edited` → `_noteChange` abre un grupo; se cierra con 1 s sin cambios, al cambiar de tipo de tecla (escribir, espacio, Retroceso, Supr), si el cursor no está donde lo dejó la última tecla (`_groupCaret`), con Enter/Tab/Ctrl+V/Ctrl+X y antes y después de cada `rewriteAt`/`replaceMarkdown`. Así cada reescritura es un paso propio.
+  - El grupo se corta antes del espacio, no después: Qt quita los espacios finales de un párrafo al reasignar el Markdown, y un estado que termina en espacio lo perdería.
+  - `_markBefore()` guarda la selección previa al cambio; llámalo antes de cualquier modificación nueva que no pase por teclas, `rewriteAt` ni `replaceMarkdown`.
+  - `load(md)` borra el historial; `load(md, true)` (recarga externa) lo conserva como un paso. `NotesPanel.histories` guarda `historyState()` por ruta al cambiar de pestaña y `restoreHistory` solo lo acepta si el contenido coincide. `retargetImages` corrige también las rutas de los estados guardados.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
 - **Delegados con propiedades `required`:** `editor: editor` dentro del delegado se enlaza a la propia propiedad (queda `undefined`) y los clics fallan sin error visible en DMS. Usa `editor: root.editor`.

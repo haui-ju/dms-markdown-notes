@@ -99,7 +99,14 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 | Ctrl+L | Convertir en checkbox (o quitarlo) |
 | Ctrl+Shift+L / Ctrl+Shift+O | Lista con viñetas / numerada |
 | Ctrl+Shift+M | Alternar vista formateada / Markdown crudo |
+| Ctrl+Z / Ctrl+Y (o Ctrl+Shift+Z) | Deshacer / rehacer |
 | Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+W / Esc | Nueva / abrir / guardar / cerrar pestaña / cerrar panel |
+
+## Deshacer
+
+- **Ctrl+Z** deshace palabra por palabra (o lo escrito antes de una pausa de 1 s). **Ctrl+Y** o **Ctrl+Shift+Z** rehace.
+- Cada autoformato, tabla, bloque de código, pegado, imagen o cambio de tipo de bloque es un paso propio: deshacer un `# ` vuelve al `#` escrito.
+- Cada pestaña guarda su historial mientras está abierta. Una recarga porque el archivo cambió fuera también se puede deshacer.
 
 ## Notas
 
@@ -112,7 +119,6 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 
 - La vista formateada usa la fuente normal del sistema, no la monoespaciada: Qt guarda el texto en fuente monoespaciada como `código`.
 - Qt normaliza el Markdown al guardar (por ejemplo `*` puede quedar como `-` y los párrafos largos se envuelven a ~80 columnas). El contenido no cambia.
-- Tras un autoformato no se puede deshacer con Ctrl+Z.
 - El formato dentro del encabezado de una tabla (negrita, código...) no se guarda: Qt lo descarta al escribir el Markdown.
 - Las tablas no admiten celdas combinadas ni varias líneas por celda, y la alineación de columnas (`:---:`) se pierde.
 - El alto se ajusta para toda la tabla, no fila a fila: Qt ignora la altura de las filas.
