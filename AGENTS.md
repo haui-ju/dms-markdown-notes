@@ -29,6 +29,7 @@ src/
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
     logic/code.js               funciones puras: lenguajes, fences, prepare/repair, tokenizador
+    logic/paste.js              funciones puras: normalizar y convertir lo pegado a Markdown
     logic/slash.js              comandos del menú "/" y filtro sin tildes
   panel/                        UI con componentes DMS (qs.Common, qs.Widgets)
     NotesPanel.qml              compone todo; guardado, atajos, acciones
@@ -41,7 +42,7 @@ src/
 tests/
   EditorTestCase.qml            base común: type(), md(), tables(), cellAt()...
   tst_*.qml                     logic, markdown_editor, slash, tables, tables_break, table_layout,
-                                code
+                                code, paste
 ```
 
 Reglas:
@@ -104,7 +105,17 @@ flowchart LR
   - `Md.decorations` devuelve `codes: [{fence, lang, lines: [{start, end, pad}]}]`; los rellenos llevan `pad: true`. `CodeController.at(pos)` da la línea y los límites del contenido (`contentStart`, `contentEnd`), sin contar los rellenos.
   - El cursor nunca se queda en un relleno: `clampCursor` lo mueve al contenido (con `Qt.callLater`, porque `cursorPositionChanged` llega antes que `textChanged`). Flechas, Enter, Retroceso y Supr en los bordes del contenido los maneja `CodeController.handleKey`.
   - `CodeDecoration` (z 1) tapa el código de Qt con un fondo opaco y dibuja la selección y el texto coloreado (`StyledText`, `&nbsp;` para no colapsar espacios) con `font.family: "monospace"` y el mismo tamaño, que coincide píxel a píxel con la fuente de código de Qt. El cursor es un `cursorDelegate` propio con z 10 para verse encima.
-  - `CodeBlockBar` va en la línea de relleno superior: chip de lenguaje, copiar (`wl-copy`) y eliminar. `CodeLanguageMenu` vive en `EditorView` para no recortarse con el flickable.
+  - `CodeBlockBar` va en la línea de relleno superior: chip de lenguaje, copiar (`editor.code.copy`) y eliminar. `CodeLanguageMenu` vive en `EditorView` para no recortarse con el flickable.
+  - Tras una lista, Qt duplica cada línea en blanco del código al serializar. `Code.repair` divide a la mitad las rachas de líneas en blanco de un bloque cuyo contenido anterior es un elemento de lista.
+- **Pegar (`pasteClipboard`):** Ctrl+V y Shift+Insert no usan el pegado de Qt, que mete fuentes, colores y bloques HTML que rompen código y tablas.
+  - El portapapeles se lee con dos `TextEdit` ocultos: uno `PlainText` y otro `MarkdownText`, que da la conversión de Qt del HTML a Markdown.
+  - `Paste.fragment` decide: si el Markdown de Qt aporta algo frente al texto plano, se usa ese Markdown (con `mergeCodeRuns` para juntar los `<pre>`, que Qt convierte en código en línea por línea, y con las filas de tabla partidas por `<br>` unidas). Si no, una línea se escapa y varias se interpretan como Markdown solo si `looksLikeMarkdown`.
+  - En código se inserta el texto plano en el fence (`Paste.forCode`, un fence dentro se neutraliza con U+200B). En celdas va en una línea con `|` escapado (`Paste.forCell`).
+  - Se inserta con `rewriteAt(pos, fn, true)`. Si `pos` está al inicio del bloque, el marcador cae un carácter después: el punto real es tras el prefijo del bloque (`Paste.blockPrefix`), el primer carácter de la línea de código o el inicio de la celda (`Paste.cellStart`).
+  - Si el fragmento acaba en un bloque (fence, tabla, separador), el cursor va a un párrafo NBSP debajo o al inicio del texto que seguía: un marcador en la línea de cierre del fence la rompe.
+- **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
+- **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
+- **MouseArea de fondo:** decláralo antes que los botones hermanos. Si va después, queda encima y les roba el clic aunque el botón tenga `z` alto dentro de su padre.
 - **Fuente monoespaciada:** el texto con esa fuente se guarda como `code`, así que la vista formateada usa una fuente proporcional.
 - **Separador al inicio:** un `---` al principio del documento añade un bloque vacío antes (`Md.decorations` lo contempla).
 - **Asignar `""`** conserva el formato del cursor anterior (por ejemplo, la negrita de un título). `_assign` pone el marcador y lo borra.

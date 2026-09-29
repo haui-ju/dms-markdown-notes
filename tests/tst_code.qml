@@ -13,6 +13,12 @@ Item {
         focus: true
     }
 
+    TextEdit {
+        id: clipboardReader
+        visible: false
+        textFormat: TextEdit.PlainText
+    }
+
     EditorTestCase {
         name: "CodeBlocks"
         editor: subject
@@ -134,6 +140,13 @@ Item {
             stable("```\n    indent\n```\n\n| a |\n| --- |\n| 1 |\n");
         }
 
+        function test_blank_lines_after_list_not_doubled() {
+            stable("- a\n- b\n\n```\n\nx\n\n\ny\n\n```\n\nfin\n");
+            compare(subject.code.text(0), "\nx\n\n\ny\n");
+            stable("1. uno\n\n```py\n```\n");
+            compare(subject.code.text(0), "");
+        }
+
         function test_blank_lines_inside_preserved() {
             stable("```\n\na\n\n\nb\n\n```\n\nfin\n");
             compare(subject.code.text(0), "\na\n\n\nb\n");
@@ -162,6 +175,15 @@ Item {
             verify(subject.code.remove(0));
             compare(subject.markdown().indexOf("abc"), -1);
             verify(/antes/.test(md()) && /fin$/.test(md()));
+        }
+
+        function test_copy_puts_code_in_clipboard() {
+            stable("antes\n\n```py\na = 1\n\n  b\n```\n\nfin\n");
+            verify(subject.code.copy(0));
+            clipboardReader.text = "";
+            clipboardReader.paste();
+            compare(clipboardReader.text, "a = 1\n\n  b");
+            compare(subject.markdown().indexOf("```py\na = 1\n\n  b\n```") >= 0, true);
         }
 
         function test_code_command_places_cursor_inside() {

@@ -327,10 +327,41 @@ function repair(md) {
     const found = fences(lines);
     for (let k = found.length - 1; k >= 0; k--) {
         const f = found[k];
-        if (f.end - f.start > 1 && _isBlank(lines[f.start + 1]))
-            lines.splice(f.start + 1, 1);
+        let body = lines.slice(f.start + 1, f.end);
+        if (_afterList(lines, f.start))
+            body = _halveBlankRuns(body);
+        if (body.length > 0 && _isBlank(body[0]))
+            body.shift();
+        lines.splice(f.start + 1, f.end - f.start - 1, ...body);
     }
     return lines.join("\n");
+}
+
+function _afterList(lines, start) {
+    let i = start - 1;
+    while (i >= 0 && _isBlank(lines[i]))
+        i--;
+    return i >= 0 && /^\s*([-*+]|\d+[.)])\s/.test(lines[i]);
+}
+
+function _halveBlankRuns(body) {
+    const out = [];
+    let run = 0;
+    const flush = () => {
+        for (let i = 0; i < Math.ceil(run / 2); i++)
+            out.push("");
+        run = 0;
+    };
+    for (const line of body) {
+        if (_isBlank(line)) {
+            run++;
+            continue;
+        }
+        flush();
+        out.push(line);
+    }
+    flush();
+    return out;
 }
 
 function expandTabs(text) {

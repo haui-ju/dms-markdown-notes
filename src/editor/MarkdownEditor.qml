@@ -2,6 +2,7 @@ import QtQuick
 import "logic/markdown.js" as Md
 import "logic/tables.js" as Tables
 import "logic/code.js" as Code
+import "logic/paste.js" as Paste
 
 TextEdit {
     id: root
@@ -63,6 +64,18 @@ TextEdit {
         font.family: root.codeFontFamily
         font.pixelSize: root.font.pixelSize
         text: " ".repeat(Code.TAB_SIZE)
+    }
+
+    TextEdit {
+        id: plainClipboard
+        visible: false
+        textFormat: TextEdit.PlainText
+    }
+
+    TextEdit {
+        id: markdownClipboard
+        visible: false
+        textFormat: TextEdit.MarkdownText
     }
 
     Timer {
@@ -283,7 +296,7 @@ TextEdit {
         });
     }
 
-    function rewriteAt(pos, fn) {
+    function rewriteAt(pos, fn, exact) {
         const block = blockRange(pos);
         const shift = (pos === block.start && block.text.length > 0) ? 1 : 0;
         slashController.close();
@@ -291,7 +304,7 @@ TextEdit {
         insert(pos + shift, Md.MARKER);
         const lines = markdownText.split("\n");
         const found = lines.findIndex(l => l.indexOf(Md.MARKER) >= 0);
-        const md = found < 0 ? null : fn(lines, found);
+        const md = found < 0 ? null : fn(lines, found, shift);
         if (md === null || md === undefined) {
             _dropMarker();
             cursorPosition = pos;
@@ -302,11 +315,70 @@ TextEdit {
         _assign(md);
         const p = _dropMarker();
         if (p >= 0)
-            cursorPosition = Math.max(0, p - shift);
+            cursorPosition = Math.max(0, exact ? p : p - shift);
         _loading = false;
         rewriteFinished();
         edited();
         return true;
+    }
+
+    function _clipboard(helper) {
+        helper.text = "";
+        helper.paste();
+        return helper.text;
+    }
+
+    function copyPlain(value) {
+        if (value === "")
+            return false;
+        plainClipboard.text = value;
+        plainClipboard.selectAll();
+        plainClipboard.copy();
+        plainClipboard.text = "";
+        return true;
+    }
+
+    function _removeSelection() {
+        if (selectionStart === selectionEnd)
+            return;
+        const start = selectionStart;
+        _loading = true;
+        remove(start, selectionEnd);
+        _loading = false;
+        cursorPosition = start;
+    }
+
+    function pasteClipboard(plainOnly) {
+        if (sourceMode)
+            return false;
+        const plainText = Paste.normalize(_clipboard(plainClipboard));
+        if (plainText === "")
+            return true;
+        _removeSelection();
+        const pos = cursorPosition;
+        if (codeController.at(pos)) {
+            const text = Paste.forCode(plainText);
+            return rewriteAt(pos, (lines, idx, shift) => {
+                const at = lines[idx].indexOf(Md.MARKER) - shift;
+                return Paste.insertInline(lines, idx, at, text).join("\n");
+            }, true);
+        }
+        if (tableController.locate(pos)) {
+            const text = Paste.forCell(plainText);
+            return rewriteAt(pos, (lines, idx, shift) => {
+                const marker = lines[idx].indexOf(Md.MARKER);
+                return Paste.insertInline(lines, idx, shift ? Paste.cellStart(lines[idx], marker) : marker, text).join("\n");
+            }, true);
+        }
+        const frag = Paste.fragment(plainText, plainOnly ? "" : _clipboard(markdownClipboard), plainOnly);
+        if (frag === "")
+            return true;
+        return rewriteAt(pos, (lines, found, shift) => {
+            const idx = Md.joinParagraph(lines, found);
+            const marker = lines[idx].indexOf(Md.MARKER);
+            const at = shift ? Paste.blockPrefix(lines[idx].replace(Md.MARKER, "")).length : marker;
+            return Paste.splice(lines, idx, at, frag).join("\n");
+        }, true);
     }
 
     function tryBlockShortcut() {
@@ -572,6 +644,11 @@ TextEdit {
                 Qt.callLater(_removeStrayMarker);
                 return;
             }
+        }
+
+        if ((ctrl && !alt && event.key === Qt.Key_V) || (shift && !ctrl && event.key === Qt.Key_Insert)) {
+            event.accepted = pasteClipboard(ctrl && shift);
+            return;
         }
 
         const code = codeController.at(cursorPosition);

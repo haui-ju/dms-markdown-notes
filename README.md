@@ -70,6 +70,16 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Retroceso en un bloque vacío lo convierte en texto normal.
 - Dentro del bloque no se aplican atajos Markdown, formato ni el menú `/`: el texto se guarda tal cual.
 
+## Pegar
+
+- Desde una web o un documento se conservan los títulos, listas, negritas, enlaces, tablas y código, pero no las fuentes, colores ni tamaños.
+- Un texto plano de varias líneas con sintaxis Markdown (`# `, `- `, ```` ``` ````, tablas) se convierte en bloques. Si no la tiene, cada línea pasa a ser un párrafo.
+- Una sola línea se pega tal cual, sin interpretar `*` ni `#`.
+- Código copiado de un editor o terminal (texto monoespaciado) se pega como bloque de código.
+- Dentro de un bloque de código se pega siempre texto plano y queda dentro del bloque.
+- Dentro de una celda el texto se pega en una sola línea, para no romper la tabla.
+- **Ctrl+Shift+V** pega como texto plano, sin formato.
+
 ## Atajos
 
 | Atajo | Acción |

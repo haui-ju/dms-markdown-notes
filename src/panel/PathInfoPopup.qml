@@ -45,7 +45,7 @@ PopupSurface {
             iconSize: Theme.iconSize - 6
             iconColor: Theme.surfaceTextMedium
             onClicked: {
-                Quickshell.execDetached(["wl-copy", root.path]);
+                Quickshell.clipboardText = root.path;
                 ToastService.showInfo("Ruta copiada al portapapeles");
             }
         }

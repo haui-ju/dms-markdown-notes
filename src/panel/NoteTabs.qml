@@ -53,6 +53,23 @@ Row {
                     height: 32
                     anchors.verticalCenter: parent?.verticalCenter
 
+                    MouseArea {
+                        id: tabMouse
+                        anchors.fill: parent
+                        enabled: !tab.editing
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (!tab.isActive)
+                                root.switchRequested(tab.index);
+                        }
+                        onDoubleClicked: {
+                            if (!tab.isActive)
+                                root.switchRequested(tab.index);
+                            root.editingIndex = tab.index;
+                        }
+                    }
+
                     Rectangle {
                         anchors.fill: parent
                         radius: Theme.cornerRadius
@@ -140,23 +157,6 @@ Row {
                                     onClicked: root.closeRequested(tab.index)
                                 }
                             }
-                        }
-                    }
-
-                    MouseArea {
-                        id: tabMouse
-                        anchors.fill: parent
-                        enabled: !tab.editing
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (!tab.isActive)
-                                root.switchRequested(tab.index);
-                        }
-                        onDoubleClicked: {
-                            if (!tab.isActive)
-                                root.switchRequested(tab.index);
-                            root.editingIndex = tab.index;
                         }
                     }
                 }

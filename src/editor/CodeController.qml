@@ -101,6 +101,10 @@ QtObject {
         return f.fence ? f.lines.slice(f.fence.start + 1, f.fence.end).join("\n") : "";
     }
 
+    function copy(index) {
+        return editor.copyPlain(text(index));
+    }
+
     function _keepCursor(md) {
         const start = editor.selectionStart;
         const end = editor.selectionEnd;

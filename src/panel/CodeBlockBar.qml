@@ -20,10 +20,8 @@ Item {
     signal languageRequested(int index, string lang, Item anchor)
 
     function copy() {
-        const text = editor.code.text(modelData.index);
-        if (text === "")
+        if (!editor.code.copy(modelData.index))
             return;
-        Quickshell.execDetached(["wl-copy", "--", text]);
         copied = true;
         copiedTimer.restart();
     }
@@ -88,7 +86,7 @@ Item {
         anchors.rightMargin: root.editor.rightPadding - Theme.spacingXS
         y: (root.padHeight - height) / 2
         spacing: 2
-        visible: root.active
+        opacity: root.active ? 1 : 0
 
         IconButton {
             buttonSize: root.buttonSize
