@@ -151,7 +151,7 @@ QtObject {
             while (next < lines.length && lines[next] === "")
                 next++;
             if (lines[next] === Md.BLANK)
-                lines[next] = Md.MARKER;
+                lines[next] = Md.BLANK + Md.MARKER;
             else
                 lines.splice(f.end + 1, 0, "", Md.MARKER, "");
             if (drop)
@@ -192,14 +192,18 @@ QtObject {
     }
 
     function handleKey(event, ctx) {
-        const plain = (event.modifiers & (Qt.ShiftModifier | Qt.AltModifier)) === 0;
+        const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
+        const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (ctrl)
+                return exit(ctx);
+            return shift ? editor.insertInCode("\n") : false;
+        }
+        const plain = (event.modifiers & (Qt.ShiftModifier | Qt.AltModifier | Qt.ControlModifier)) === 0;
         const pos = editor.cursorPosition;
         if (editor.selectionStart !== editor.selectionEnd || !plain)
             return false;
         switch (event.key) {
-        case Qt.Key_Return:
-        case Qt.Key_Enter:
-            return ctx.last && !ctx.single && ctx.text.trim() === "" ? exit(ctx) : false;
         case Qt.Key_Backspace:
             if (pos !== ctx.start)
                 return false;

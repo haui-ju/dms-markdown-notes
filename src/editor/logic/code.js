@@ -341,7 +341,14 @@ function _afterList(lines, start) {
     let i = start - 1;
     while (i >= 0 && _isBlank(lines[i]))
         i--;
-    return i >= 0 && /^\s*([-*+]|\d+[.)])\s/.test(lines[i]);
+    while (i >= 0 && !_isBlank(lines[i]) && !_isFence(lines[i])) {
+        if (/^\s*([-*+]|\d+[.)])\s/.test(lines[i]))
+            return true;
+        if (!/^\s/.test(lines[i]))
+            return false;
+        i--;
+    }
+    return false;
 }
 
 function _halveBlankRuns(body) {

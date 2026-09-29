@@ -348,6 +348,14 @@ TextEdit {
         cursorPosition = start;
     }
 
+    function insertInCode(text) {
+        _removeSelection();
+        return rewriteAt(cursorPosition, (lines, idx, shift) => {
+            const at = lines[idx].indexOf(Md.MARKER) - shift;
+            return Paste.insertInline(lines, idx, at, text).join("\n");
+        }, true);
+    }
+
     function pasteClipboard(plainOnly) {
         if (sourceMode)
             return false;
@@ -356,13 +364,8 @@ TextEdit {
             return true;
         _removeSelection();
         const pos = cursorPosition;
-        if (codeController.at(pos)) {
-            const text = Paste.forCode(plainText);
-            return rewriteAt(pos, (lines, idx, shift) => {
-                const at = lines[idx].indexOf(Md.MARKER) - shift;
-                return Paste.insertInline(lines, idx, at, text).join("\n");
-            }, true);
-        }
+        if (codeController.at(pos))
+            return insertInCode(Paste.forCode(plainText));
         if (tableController.locate(pos)) {
             const text = Paste.forCell(plainText);
             return rewriteAt(pos, (lines, idx, shift) => {
@@ -654,7 +657,10 @@ TextEdit {
         const code = codeController.at(cursorPosition);
 
         if (ctrl && !alt) {
-            event.accepted = code ? _isFormatKey(event.key) : _handleCtrl(event.key, shift);
+            if (code)
+                event.accepted = codeController.handleKey(event, code) || _isFormatKey(event.key);
+            else
+                event.accepted = _handleCtrl(event.key, shift);
             return;
         }
 

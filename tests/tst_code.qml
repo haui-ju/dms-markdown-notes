@@ -41,11 +41,81 @@ Item {
             verify(block() !== null);
         }
 
-        function test_enter_twice_on_last_line_exits() {
-            type("```\na\n\nfuera");
+        function test_enter_never_exits() {
+            type("```\na\n\n\ndentro");
+            compare(subject.code.text(0), "a\n\n\ndentro");
+            verify(block() !== null);
+        }
+
+        function test_ctrl_enter_exits() {
+            type("```\na");
+            keyClick(Qt.Key_Return, Qt.ControlModifier);
+            compare(block(), null);
+            type("fuera");
             compare(subject.code.text(0), "a");
             verify(/```\n+fuera$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_ctrl_enter_drops_trailing_empty_line() {
+            type("```\na\n");
+            keyClick(Qt.Key_Return, Qt.ControlModifier);
+            type("fuera");
+            compare(subject.code.text(0), "a");
+        }
+
+        function test_ctrl_enter_before_following_text() {
+            stable("```\na\n```\n\nsigue\n");
+            subject.cursorPosition = subject.plain().indexOf("a") + 1;
+            keyClick(Qt.Key_Return, Qt.ControlModifier);
+            type("nuevo");
+            verify(/```\n+nuevo\n\nsigue$/.test(md()), JSON.stringify(md()));
+        }
+
+        function test_down_on_last_line_exits() {
+            type("```\na");
+            keyClick(Qt.Key_Down);
             compare(block(), null);
+        }
+
+        function test_shift_enter_adds_line_and_keeps_blocks() {
+            stable("```js\nuno\n```\n\ntexto\n\n```py\ndos\n```\n");
+            subject.cursorPosition = subject.plain().indexOf("uno") + 3;
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            type("tres");
+            compare(subject.code.text(0), "uno\ntres");
+            compare(subject.code.codes().length, 2);
+            compare(subject.code.text(1), "dos");
+            subject.code.measure();
+            compare(subject.code.blocks.length, 2);
+            compare(subject.plain().indexOf("\u2028"), -1);
+            const saved = subject.markdown();
+            subject.load(saved);
+            compare(subject.markdown(), saved);
+        }
+
+        function test_shift_enter_in_list_keeps_code_decorations() {
+            stable("hola\n\n- item\n\n```py\ndos\n```\n\nfin\n");
+            subject.cursorPosition = subject.plain().indexOf("item") + 2;
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            verify(subject.decorations() !== null);
+            compare(subject.code.text(0), "dos");
+            compare(subject.code.codes().length, 1);
+        }
+
+        function test_shift_enter_in_paragraph_keeps_code_decorations() {
+            stable("hola mundo\n\n```js\nuno\n```\n\nfin\n");
+            subject.cursorPosition = 4;
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            verify(subject.decorations() !== null);
+            compare(subject.code.codes().length, 1);
+        }
+
+        function test_shift_enter_in_middle_of_line() {
+            stable("```\nabcd\n```\n\nfin\n");
+            subject.cursorPosition = subject.plain().indexOf("abcd") + 2;
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            compare(subject.code.text(0), "ab\ncd");
+            compare(subject.cursorPosition, subject.plain().indexOf("cd"));
         }
 
         function test_enter_in_middle_keeps_blank_line() {

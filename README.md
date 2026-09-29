@@ -66,7 +66,7 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - `/codigo` o ```` ``` ```` + Enter crean un bloque. Para indicar el lenguaje, escríbelo tras las comillas (```` ```python ````) o elígelo después en el bloque.
 - Se colorea la sintaxis de Bash, C, C++, CSS, Go, HTML, Java, JavaScript, JSON, Markdown, Python, QML, Rust, SQL, TypeScript y YAML, con colores armonizados con el tema.
 - Al pasar el ratón o poner el cursor dentro aparecen los botones: el lenguaje (arriba a la izquierda) abre la lista para cambiarlo; a la derecha están **copiar** y **eliminar bloque**.
-- Enter crea líneas dentro del bloque. Enter en una línea vacía al final sale del bloque. Las flechas también entran y salen.
+- Enter y Shift+Enter crean líneas dentro del bloque; nunca sacan de él. Para salir: **Ctrl+Enter** (crea una línea debajo del bloque) o **flecha abajo** en la última línea. Las flechas también entran y salen.
 - Retroceso en un bloque vacío lo convierte en texto normal.
 - Dentro del bloque no se aplican atajos Markdown, formato ni el menú `/`: el texto se guarda tal cual.
 
