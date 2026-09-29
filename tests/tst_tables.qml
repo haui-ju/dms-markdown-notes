@@ -151,20 +151,21 @@ Item {
 
         function test_slash_table_below_text() {
             type("hola /tabla\n");
-            verify(/^hola\s*\n+\| ?Columna 1/.test(md()), md());
+            verify(/^hola\s*\n+<!-- tabla: alto=amplio -->\n\| ?Columna 1/.test(md()), md());
             compare(tables().length, 1);
+            compare(editor.tableLayouts[0].density, "amplio");
         }
 
         function test_slash_table_from_start_of_text_line() {
             editor.load("hola\n");
             editor.cursorPosition = 0;
             type("/tabla\n");
-            verify(/^hola\n+\| ?Columna 1/.test(md()), md());
+            verify(/^hola\n+<!-- tabla: alto=amplio -->\n\| ?Columna 1/.test(md()), md());
         }
 
         function test_slash_table_inside_list_item_keeps_item() {
             type("- item /tabla\n");
-            verify(/^- item\s*\n+\| ?Columna 1/.test(md()), md());
+            verify(/^- item\s*\n+<!-- tabla: alto=amplio -->\n\| ?Columna 1/.test(md()), md());
             compare(tables().length, 1);
         }
 

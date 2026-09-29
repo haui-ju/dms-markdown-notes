@@ -6,6 +6,7 @@ var TABLE_END = 0xFDD1;
 var DEFAULT_ROWS = 3;
 var DEFAULT_COLUMNS = 3;
 var DENSITIES = ["compacto", "normal", "amplio"];
+var NEW_TABLE_DENSITY = "amplio";
 var PADDING = {
     compacto: 2,
     normal: 5,

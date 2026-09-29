@@ -377,6 +377,27 @@ Item {
             }
         }
 
+        function test_cut_whole_quote_keeps_it_and_copies() {
+            editor.load("a\n\n> hola\n\nb");
+            editor.select(2, 6);
+            keyClick(Qt.Key_X, Qt.ControlModifier);
+            compare(md(), "a\n\n> \u00a0\n\nb");
+            compare(quotes(), 1);
+            editor.load("x");
+            editor.selectAll();
+            editor.deselect();
+            editor.cursorPosition = 1;
+            keyClick(Qt.Key_V, Qt.ControlModifier);
+            compare(md(), "xhola");
+        }
+
+        function test_cut_partial_quote_is_normal() {
+            editor.load("a\n\n> hola\n\nb");
+            editor.select(2, 4);
+            keyClick(Qt.Key_X, Qt.ControlModifier);
+            compare(md(), "a\n\n> la\n\nb");
+        }
+
         function test_empty_quote_undo_and_neighbours() {
             editor.load("| a |\n|---|\n| 1 |\n\n> cita\n\n```js\nx\n```\n\n![](nada.png)\n\n> otra");
             const d = editor.decorations();

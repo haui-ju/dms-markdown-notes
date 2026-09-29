@@ -228,6 +228,9 @@ QtObject {
             editor.cursorPosition = block.end;
         const lines = Tables.serialize(Tables.create(Tables.DEFAULT_ROWS, Tables.DEFAULT_COLUMNS));
         lines[0] = lines[0].replace(Tables.headerLabel(0), Tables.headerLabel(0) + Md.MARKER);
+        const layout = Tables.defaultLayout(Tables.DEFAULT_COLUMNS);
+        layout.density = Tables.NEW_TABLE_DENSITY;
+        lines.unshift(Tables.layoutLine(layout));
         const ok = editor.rewriteLineAt(editor.cursorPosition, (line, parsed) => {
             const keep = Md.blockContent(line, parsed).trim() !== "" ? line.replace(Md.MARKER, "") + "\n\n" : "";
             return keep + lines.join("\n") + "\n";

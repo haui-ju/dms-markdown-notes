@@ -944,10 +944,21 @@ TextEdit {
         return true;
     }
 
-    function _clearQuoteSelection() {
+    function _wholeQuoteSelected() {
         const block = blockRange(selectionStart);
-        if (selectionStart !== block.start || selectionEnd !== block.end || block.text === Md.BLANK || !_quoteAt(block.start))
+        return selectionStart !== selectionEnd && selectionStart === block.start && selectionEnd === block.end && block.text !== Md.BLANK && _quoteAt(block.start) ? block : null;
+    }
+
+    function _clearQuoteSelection() {
+        const block = _wholeQuoteSelected();
+        return block !== null && _blankQuote(block);
+    }
+
+    function _cutQuoteSelection() {
+        const block = _wholeQuoteSelected();
+        if (block === null)
             return false;
+        copyPlain(block.text);
         return _blankQuote(block);
     }
 
@@ -1129,6 +1140,8 @@ TextEdit {
             return setBlockType(shift ? "bullet" : "task");
         case Qt.Key_O:
             return shift && setBlockType("number");
+        case Qt.Key_X:
+            return !shift && _cutQuoteSelection();
         }
         return false;
     }
