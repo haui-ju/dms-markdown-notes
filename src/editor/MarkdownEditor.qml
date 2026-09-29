@@ -20,6 +20,7 @@ TextEdit {
     property var _rules: []
     property int _plainAfterFormatPos: -1
     property bool _loading: false
+    property bool _flattening: false
 
     signal edited
     signal rewriteStarted
@@ -32,6 +33,10 @@ TextEdit {
     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
 
     onTextChanged: {
+        if (_flattening)
+            return;
+        if (!sourceMode)
+            _flattenCells();
         revision++;
         markdownText = sourceMode ? text : Tables.repair(text, plain(), tableLayouts);
         decorationTimer.restart();
@@ -88,6 +93,21 @@ TextEdit {
 
     function decorations() {
         return sourceMode ? null : Md.decorations(markdownText, plain());
+    }
+
+    function _flattenCells() {
+        const breaks = tableController.lineBreaks();
+        if (breaks.length === 0)
+            return;
+        _flattening = true;
+        for (let i = breaks.length - 1; i >= 0; i--) {
+            const p = breaks[i];
+            remove(p, p + 1);
+            insert(p, Md.MARKER + " " + Md.MARKER);
+            remove(p + 2, p + 3);
+            remove(p, p + 1);
+        }
+        _flattening = false;
     }
 
     function _assign(md) {
@@ -466,6 +486,11 @@ TextEdit {
 
         const cell = tableController.locateSelection();
         if (cell && tableController.handleKey(event, cell)) {
+            event.accepted = true;
+            return;
+        }
+        const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+        if (enter && !cell && (tableController.contains(selectionStart) || tableController.contains(selectionEnd))) {
             event.accepted = true;
             return;
         }

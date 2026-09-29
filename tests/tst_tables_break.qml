@@ -176,6 +176,47 @@ Item {
             compare(table()[1], ["1", "x", ""]);
         }
 
+        function test_shift_enter_never_breaks_a_cell() {
+            editor.load("Antes\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\nFin\n");
+            for (const k of [0, 2, 5]) {
+                placeInCell(0, k);
+                keyClick(Qt.Key_Return, Qt.ShiftModifier);
+                keyClick(Qt.Key_Enter, Qt.ShiftModifier);
+            }
+            compare(editor.table.lineBreaks(), []);
+            compare(table(), [["A", "B"], ["1", "2"], ["3", "4"]]);
+        }
+
+        function test_enter_with_selection_leaving_cell_does_nothing() {
+            editor.load("Antes\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nFin\n");
+            editor.select(cellAt(0, 1).start, cellAt(0, 3).end);
+            keyClick(Qt.Key_Return);
+            keyClick(Qt.Key_Return, Qt.ShiftModifier);
+            compare(table(), [["A", "B"], ["1", "2"]]);
+        }
+
+        function test_line_breaks_in_cells_become_spaces() {
+            editor.load("Antes\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\nFin\n");
+            editor.insert(cellAt(0, 2).end, "\u2028y\u2028z");
+            compare(cellText(0, 2), "1 y z");
+            compare(table()[1], ["1 y z", "2"]);
+            const saved = editor.markdown();
+            editor.load(saved);
+            compare(table(), [["A", "B"], ["1 y z", "2"], ["3", "4"]]);
+            verify(/Fin$/.test(md()));
+        }
+
+        function test_pasting_paragraphs_into_cell_stays_in_cell() {
+            editor.load("Antes\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nFin\n");
+            editor.insert(cellAt(0, 2).end, "uno\n\ndos");
+            compare(tables().length, 1);
+            compare(table()[1].length, 2);
+            editor.load(editor.markdown());
+            compare(tables().length, 1);
+            compare(table()[0], ["A", "B"]);
+            verify(/Fin$/.test(md()));
+        }
+
         function test_typing_into_blank_cell() {
             editor.load(sample);
             placeInCell(0, 2);

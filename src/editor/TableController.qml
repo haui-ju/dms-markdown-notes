@@ -73,6 +73,27 @@ QtObject {
         return hit ? _context(m, hit.table, hit.cell) : null;
     }
 
+    function contains(pos) {
+        return !editor.sourceMode && Tables.locate(model().spans, pos) !== null;
+    }
+
+    function lineBreaks() {
+        const plain = editor.plain();
+        if (plain.indexOf(String.fromCharCode(Tables.CELL)) < 0)
+            return [];
+        const found = [];
+        for (const span of Tables.scan(plain)) {
+            for (const cell of span.cells) {
+                for (let i = cell.start; i < cell.end; i++) {
+                    const code = plain.charCodeAt(i);
+                    if (code === 0x2028 || code === 0x2029)
+                        found.push(i);
+                }
+            }
+        }
+        return found;
+    }
+
     function locateSelection() {
         const ctx = locate(editor.selectionStart);
         if (!ctx || editor.selectionEnd > ctx.span.cells[ctx.cell].end)
