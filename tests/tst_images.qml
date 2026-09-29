@@ -96,6 +96,15 @@ Item {
             verify(img.y >= r.y && img.y + img.height <= r.y + r.height + 1, JSON.stringify([img, r]));
         }
 
+        function test_image_has_gap_around_it() {
+            subject.load("texto\n\n![](tmp/dmsnotes-small.png)\n\nfin\n");
+            const img = measured()[0];
+            const r = subject.positionToRectangle(img.pos);
+            verify(subject.blockGap > 0);
+            compare(img.y - r.y, subject.blockGap);
+            verify(r.y + r.height - (img.y + img.height) >= subject.blockGap);
+        }
+
         function test_missing_image_shows_placeholder() {
             subject.load("![](tmp/dmsnotes-no-existe.png)\n");
             const imgs = measured();

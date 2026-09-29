@@ -71,7 +71,7 @@ function isPlaceholder(url) {
     return url.indexOf(PLACEHOLDER_PREFIX) === 0;
 }
 
-function prepare(md, sizeOf, maxWidth, maxHeight, registry) {
+function prepare(md, sizeOf, maxWidth, maxHeight, registry, gap) {
     const found = find(md);
     const result = {
         text: md,
@@ -87,7 +87,10 @@ function prepare(md, sizeOf, maxWidth, maxHeight, registry) {
             continue;
         const natural = sizeOf(img.src);
         const size = fit(natural, maxWidth, maxHeight) || MISSING;
-        const url = placeholder(size, registry.idOf(img.src + "\n" + img.alt));
+        const url = placeholder({
+            width: size.width,
+            height: size.height + 2 * (gap || 0)
+        }, registry.idOf(img.src + "\n" + img.alt));
         result.sources[url] = {
             alt: img.alt,
             raw: img.raw

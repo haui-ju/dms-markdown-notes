@@ -287,6 +287,51 @@ Item {
             compare(d.rules.length, 1);
         }
 
+        function test_source_mode_ignores_caret_format() {
+            const normal = headingHeight("texto");
+            for (const pos of [0, 3, 6]) {
+                for (const source of ["# Hola\n\ntexto", "`codigo` y texto"]) {
+                    editor.load(source);
+                    editor.cursorPosition = pos;
+                    editor.setSourceMode(true);
+                    compare(editor.positionToRectangle(1).height, normal, source + " @" + pos);
+                    compare(editor.positionToRectangle(editor.length).height, normal);
+                    editor.load("# Otra nota");
+                    compare(editor.positionToRectangle(1).height, normal);
+                    editor.setSourceMode(false);
+                }
+            }
+        }
+
+        function test_decorations_map_quotes() {
+            editor.load("> uno\n>\n> dos\n\ntexto\n\n> tres\nperezoso\n\notro texto\n\n> - item\n> - otro");
+            const d = editor.decorations();
+            verify(d !== null);
+            compare(d.quotes.length, 3);
+            compare(editor.getText(d.quotes[0].start, d.quotes[0].end), "uno\u2029dos");
+            compare(editor.getText(d.quotes[1].start, d.quotes[1].end), "tres perezoso");
+            compare(editor.getText(d.quotes[2].start, d.quotes[2].end), "item\u2029otro");
+        }
+
+        function test_quoted_heading_keeps_decorations() {
+            editor.load("- [ ] tarea\n\n> # titulo\n> fin\n\n- - -\nfinal\n");
+            const d = editor.decorations();
+            verify(d !== null);
+            compare(d.tasks.length, 1);
+            compare(d.rules.length, 1);
+            verify(d.quotes.length > 0);
+        }
+
+        function test_quote_decoration_covers_text() {
+            editor.load("antes\n\n> una cita\n\ndespues");
+            editor.refreshDecorations();
+            compare(editor._quotes.length, 1);
+            const r = editor.positionToRectangle(editor._quotes[0].start);
+            const after = editor.positionToRectangle(editor.length);
+            verify(r.x > editor.leftPadding + 16);
+            verify(after.y > r.y + r.height);
+        }
+
         function test_decorations_leading_rule() {
             editor.load("- - -\nFIS:\n\n- uno\n");
             const d = editor.decorations();

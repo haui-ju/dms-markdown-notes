@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ## [Sin publicar]
 
+### Añadido
+
+- Las citas se ven con una barra de color y un fondo suave.
+- Más espacio encima y debajo de tablas e imágenes.
+
 ### Corregido
+
+- La vista Markdown sin formato mostraba todo el texto con el tamaño de un título (o en fuente de código) según dónde estaba el cursor al cambiar de vista.
 
 - Los bloques de código no funcionaban (sin fondo, botones ni teclas propias) en notas con una tabla, una imagen o un separador antes del bloque.
 - Un separador justo encima de un bloque de código desaparecía al guardar.

@@ -128,7 +128,8 @@ Bloques: Texto, Título 1-3, Lista, Lista numerada, Lista de tareas, Cita, Separ
 - Las imágenes no se pueden redimensionar ni poner dentro de tablas o bloques de código. El texto alternativo (`![texto](...)`) se conserva pero no se muestra.
 - Pegar una imagen requiere el historial del portapapeles de DMS (`dms clipboard`).
 - No hay bloques arrastrables.
-- El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica.
+- El interlineado y la separación entre párrafos no se pueden ajustar: el `TextEdit` de Qt no expone esas propiedades a QML y el importador Markdown no las aplica. Las tablas y las imágenes sí llevan un margen propio.
+- Un título dentro de una cita (`> # título`) sale de la cita al guardar, y un separador en la última línea de la nota se pierde: Qt no los escribe.
 - Los bloques de código no ajustan las líneas largas y los tabuladores se guardan como 4 espacios.
 - Un bloque de código al inicio o al final de la nota lleva una línea en blanco (NBSP) al lado para poder escribir antes o después.
 

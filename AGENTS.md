@@ -27,6 +27,7 @@ src/
     CodeDecoration.qml          fondo, selección y texto coloreado sobre el código de Qt
     TaskDecoration.qml          casilla dibujada sobre la de Qt
     RuleDecoration.qml          separador dibujado sobre el de Qt
+    QuoteDecoration.qml         barra y fondo de las citas, detrás del texto
     ImageDecoration.qml         imagen real (o aviso) sobre el hueco que reserva Qt; clic = visor
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
@@ -142,6 +143,9 @@ flowchart LR
 - **Separador + código:** Qt no escribe un separador seguido directamente de un fence. `Code.prepare` pone un párrafo NBSP entre ambos y `blankLine` lo marca como `needed` (`_afterRule`).
 - **Front matter:** Qt 6.11 reconoce el YAML inicial (`---`…`---`), lo oculta y lo devuelve en `text`. No hay que hacer nada, pero no rompas esa primera línea `---` (no es un separador).
 - **Interlineado:** `TextEdit` no tiene `lineHeight` ni margen de párrafo en QML, el importador Markdown no aplica márgenes a los párrafos y un `<p style="line-height">` crea o fusiona bloques. No hay forma fiable sin C++.
+- **Separación de bloques (`blockGap`, media línea):** la `<table>` lleva `margin-top`/`margin-bottom` (Qt sí los respeta) y el placeholder de cada imagen es `2 × blockGap` más alto; `_measureImages` dibuja la imagen `blockGap` por debajo del inicio de la línea, que en Qt mide exactamente lo que el placeholder.
+- **Citas:** Qt las sangra 40 px sin ninguna marca. `Md.blocks` marca los párrafos con `quote` y `group` (un `>` vacío no corta el grupo, una línea en blanco sí; una línea sin `>` tras una cita la continúa) y quita de su texto los prefijos de lista y título. `decorations().quotes` da `{start, end}` por grupo y `QuoteDecoration` (z −1, detrás del texto) dibuja fondo y barra.
+- **Vista Markdown:** al pasar de `MarkdownText` a `PlainText`, Qt convierte el documento aplicando a todo el formato de carácter del cursor (título, código). `setSourceMode(true)` asigna antes un documento de un carácter y mueve el cursor para que el formato sea el normal.
 - **Clipboard sin dependencias:** en `editor/`, `copyPlain(text)` copia con un `TextEdit` oculto; en `panel/`, `Quickshell.clipboardText = text`. No uses `wl-copy`: no siempre está instalado.
 - **Botones que aparecen al pasar el ratón:** ocúltalos con `opacity`, no con `visible`. Al presionar, `HoverHandler` deja de reportar hover, el botón se oculta y el clic no llega.
 - **Delegados con propiedades `required`:** `editor: editor` dentro del delegado se enlaza a la propia propiedad (queda `undefined`) y los clics fallan sin error visible en DMS. Usa `editor: root.editor`.

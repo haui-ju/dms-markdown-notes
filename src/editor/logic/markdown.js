@@ -132,8 +132,12 @@ function blocks(md) {
     const out = [];
     let para = null;
     let code = 0;
+    let group = 0;
+    let quoted = false;
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
+        if (!/^[ \t]*>/.test(line) && !(para && para.quote && line.trim() !== ""))
+            quoted = false;
         const f = fences[code];
         if (f && index >= f.start && index <= f.end) {
             para = null;
@@ -193,17 +197,33 @@ function blocks(md) {
             para = null;
             continue;
         }
-        if (para) {
-            para.text += " " + line.trim().replace(/^>\s?/, "");
+        const quote = /^[ \t]*>/.test(line);
+        const inner = line.replace(/^([ \t]*>[ \t]?)+/, "");
+        const opens = quote && /^(\s*([-*+]|\d+[.)])\s|#{1,6}[ \t])/.test(inner);
+        if (para && !para.heading && (!quote || para.quote) && !opens) {
+            para.text += " " + _quoteText(line.trim());
             continue;
+        }
+        if (quote && !quoted) {
+            group++;
+            quoted = true;
         }
         para = {
             type: "para",
-            text: line.replace(/^>\s?/, "")
+            quote: quote,
+            group: quote ? group : 0,
+            heading: quote && /^#{1,6}[ \t]/.test(inner),
+            text: _quoteText(line)
         };
         out.push(para);
     }
     return out;
+}
+
+function _quoteText(line) {
+    if (!/^[ \t]*>/.test(line))
+        return line;
+    return line.replace(/^([ \t]*>[ \t]?)+/, "").replace(/^(\s*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?|#{1,6}[ \t]+)/, "");
 }
 
 function norm(s) {
@@ -215,6 +235,7 @@ function decorations(md, plain) {
     const tasks = [];
     const rules = [];
     const codes = [];
+    const quotes = [];
     const addCode = (b, from, to) => {
         let c = codes[codes.length - 1];
         if (!c || c.fence !== b.fence) {
@@ -267,6 +288,17 @@ function decorations(md, plain) {
                     end: i,
                     checked: b.checked
                 });
+            if (b.quote) {
+                const last = quotes[quotes.length - 1];
+                if (last && last.group === b.group)
+                    last.end = i;
+                else
+                    quotes.push({
+                        group: b.group,
+                        start: start,
+                        end: i
+                    });
+            }
             j++;
         } else if (text.trim() !== "") {
             return null;
@@ -276,7 +308,8 @@ function decorations(md, plain) {
     return {
         tasks: tasks,
         rules: rules,
-        codes: codes
+        codes: codes,
+        quotes: quotes
     };
 }
 

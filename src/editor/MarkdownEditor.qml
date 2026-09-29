@@ -15,6 +15,7 @@ TextEdit {
     property color accentColor: "#8ab4f8"
     property color checkMarkColor: "#000000"
     property color ruleColor: Qt.rgba(color.r, color.g, color.b, 0.18)
+    property color quoteBackground: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
     property color tableBorderColor: Qt.tint(decorationBackground, Qt.rgba(color.r, color.g, color.b, 0.3))
     property var tableLayouts: []
     property color selectionTextColor: "#000000"
@@ -36,6 +37,7 @@ TextEdit {
     property string _decorationsKey: ""
     property var _tasks: []
     property var _rules: []
+    property var _quotes: []
     property int _plainAfterFormatPos: -1
     property int _emptyHeadingPos: -1
     property int _emptyHeadingLevel: 0
@@ -49,6 +51,7 @@ TextEdit {
     property var _imageIds: ({})
     property int _imageNextId: 1
     property real _imageLayoutWidth: 0
+    readonly property int blockGap: Math.round(textMetrics.height * 0.5)
     readonly property real imageMaxWidth: width > 0 ? Math.max(64, width - leftPadding - rightPadding - 2) : 480
     readonly property int historyLimit: 200
     readonly property bool undoAvailable: _undoStack.length > 0 || _groupOpen
@@ -214,6 +217,13 @@ TextEdit {
     }
 
     Repeater {
+        model: root._quotes
+        delegate: QuoteDecoration {
+            editor: root
+        }
+    }
+
+    Repeater {
         model: root._tasks
         delegate: TaskDecoration {
             editor: root
@@ -238,6 +248,7 @@ TextEdit {
         const d = decorations();
         _tasks = d ? d.tasks : [];
         _rules = d ? d.rules : [];
+        _quotes = d ? d.quotes : [];
         tableController.refresh();
         tableController.measure();
         codeController.measure();
@@ -279,7 +290,7 @@ TextEdit {
     }
 
     function _prepareImages(md) {
-        const result = Images.prepare(md, src => _imageSize(src), imageMaxWidth, imageMaxHeight, _imageRegistry());
+        const result = Images.prepare(md, src => _imageSize(src), imageMaxWidth, imageMaxHeight, _imageRegistry(), blockGap);
         _imageSources = result.sources;
         _imageLayoutWidth = imageMaxWidth;
         return result.text;
@@ -305,7 +316,7 @@ TextEdit {
             out.push({
                 pos: pos,
                 x: r.x,
-                y: r.height > size.height ? Math.max(r.y, r.y + r.height - textMetrics.descent - size.height) : r.y,
+                y: r.height > size.height ? Math.max(r.y + blockGap, r.y + r.height - textMetrics.descent - size.height - blockGap) : r.y,
                 width: size.width,
                 height: size.height,
                 url: Images.resolve(img.src, imageBaseDir),
@@ -553,7 +564,8 @@ TextEdit {
                 return;
             }
             const prepared = Tables.prepare(Code.prepare(_prepareImages(md)), {
-                border: tableBorderColor.toString()
+                border: tableBorderColor.toString(),
+                margin: blockGap
             });
             tableLayouts = prepared.layouts;
             text = prepared.text;
@@ -594,6 +606,10 @@ TextEdit {
         const md = markdownText;
         const pos = cursorPosition;
         _loading = true;
+        if (on) {
+            text = Md.MARKER;
+            cursorPosition = 1;
+        }
         sourceMode = on;
         _assign(md);
         _loading = false;

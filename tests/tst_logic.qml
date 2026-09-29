@@ -152,6 +152,14 @@ TestCase {
         compare(out.layouts, [Tables.defaultLayout(3)]);
     }
 
+    function test_prepare_table_margin() {
+        const out = Tables.prepare("x\n\n| a |\n|-|\n| 1 |\n", {
+            border: "#888888",
+            margin: 9
+        }).text;
+        verify(out.indexOf("border-color: #888888; margin-top: 9px; margin-bottom: 9px\"") > 0, out);
+    }
+
     function test_prepare_empty_header_cells_get_nbsp() {
         const out = Tables.prepare("x\n\n|  | b |\n|-|-|\n|  |  |\n", style).text;
         verify(out.indexOf("<th align=\"left\">&nbsp;</th>") > 0, out);

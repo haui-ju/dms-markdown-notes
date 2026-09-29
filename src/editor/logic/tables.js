@@ -222,7 +222,8 @@ function htmlTable(rows, layout, style) {
     const widths = layout.columns.length === rows[0].length ? layout.columns : null;
     const pad = PADDING[layout.density] || PADDING.normal;
     const border = style && style.border ? style.border : "#808080";
-    const attrs = " border=\"1\" cellspacing=\"0\" cellpadding=\"" + pad + "\" style=\"border-collapse: collapse; border-color: " + border + "\"" + (layout.width ? " width=\"" + layout.width + "%\"" : "");
+    const margin = style && style.margin ? "; margin-top: " + style.margin + "px; margin-bottom: " + style.margin + "px" : "";
+    const attrs = " border=\"1\" cellspacing=\"0\" cellpadding=\"" + pad + "\" style=\"border-collapse: collapse; border-color: " + border + margin + "\"" + (layout.width ? " width=\"" + layout.width + "%\"" : "");
     const head = rows[0].map((c, i) => "<th align=\"left\"" + (widths ? " width=\"" + widths[i] + "%\"" : "") + ">" + (c === "" ? "&nbsp;" : inlineHtml(c)) + "</th>").join("");
     const body = (rows.length > 1 ? rows.slice(1) : [rows[0].map(() => "")]).map(r => "<tr>" + r.map(c => "<td>" + inlineHtml(c) + "</td>").join("") + "</tr>").join("");
     return "<table" + attrs + "><tr>" + head + "</tr>" + body + "</table>";
