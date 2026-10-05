@@ -88,6 +88,65 @@ Item {
             compare(imgs[0].url, "file:///tmp/dmsnotes-small.png");
         }
 
+        function test_mini_image_size() {
+            subject.load("<!-- imagen: mini -->\n![](tmp/dmsnotes-small.png)\n");
+            const imgs = measured();
+            compare(imgs.length, 1);
+            compare(imgs[0].width, Images.MINI_SIZE);
+            compare(imgs[0].mini, true);
+            verify(subject.exportMarkdown().indexOf("img: ancho=50 inicio") >= 0);
+            verify(subject.exportMarkdown().indexOf("img: ancho=50 fin") >= 0);
+            verify(md().indexOf("dmsnotes-small.png") >= 0);
+        }
+
+        function test_undo_redo_keeps_gallery_count() {
+            subject.load("<!-- img: ancho=50 inicio -->\n![](tmp/dmsnotes-small.png)\n<!-- img: ancho=50 fin -->\n");
+            measured();
+            wait(50);
+            const first = measured()[0];
+            subject.cursorPosition = first.pos + 1;
+            compare(subject.insertImages(["tmp/dmsnotes-big.png"]), true);
+            compare(measured().filter(im => im.mini).length, 2);
+            subject.undo();
+            compare(measured().filter(im => im.mini).length, 1);
+            subject.redo();
+            compare(measured().filter(im => im.mini).length, 2);
+        }
+
+        function test_insert_image_on_mini_line_stays_inline() {
+            subject.load("<!-- img: ancho=50 inicio -->\n![](tmp/dmsnotes-small.png)\n<!-- img: ancho=50 fin -->\n");
+            measured();
+            wait(50);
+            const first = measured()[0];
+            subject.cursorPosition = first.pos + 1;
+            compare(subject.insertImages(["tmp/dmsnotes-big.png"]), true);
+            const imgs = measured();
+            compare(imgs.filter(im => im.mini).length, 2);
+            compare(imgs[0].width, Images.MINI_SIZE);
+            compare(imgs[1].width, Images.MINI_SIZE);
+            verify(md().indexOf("dmsnotes-small.png") >= 0);
+            verify(md().indexOf("dmsnotes-big.png") >= 0);
+            const saved = subject.exportMarkdown();
+            verify(saved.indexOf("dmsnotes-big.png") >= 0);
+            verify(saved.indexOf("img: ancho=50 fin") >= 0);
+        }
+
+        function test_caption_on_full_not_mini() {
+            subject.load("![Pie de foto](tmp/dmsnotes-small.png)\n");
+            const imgs = measured();
+            compare(imgs[0].caption, "Pie de foto");
+            compare(imgs[0].mini, false);
+            compare(imgs[0].captionHeight > 0, true);
+        }
+
+        function test_caption_after_edit_shows_in_overlay() {
+            subject.load("![](tmp/dmsnotes-small.png)\n");
+            subject.replaceMarkdown(Images.setImageCaption(md(), 0, "Leyenda visible"));
+            const imgs = measured();
+            compare(imgs[0].caption, "Leyenda visible");
+            compare(imgs[0].captionHeight > 0, true);
+        }
+
         function test_overlay_sits_on_image_rect() {
             subject.load("texto\n\n![](tmp/dmsnotes-small.png)\n\nfin\n");
             const img = measured()[0];
@@ -189,7 +248,7 @@ Item {
             compare(measured().length, 1);
         }
 
-        function test_click_emits_activation() {
+        function test_click_opens_menu_then_view_emits_activation() {
             subject.load("![alt](tmp/dmsnotes-small.png)\n");
             measured();
             wait(50);
@@ -197,6 +256,10 @@ Item {
             const area = findArea(subject);
             verify(area);
             mouseClick(area);
+            wait(0);
+            verify(subject.imageController.menuTarget);
+            compare(subject.imageController.menuTarget.src, "tmp/dmsnotes-small.png");
+            subject.imageController.viewImage();
             compare(spy.count, 1);
             compare(spy.signalArguments[0][0], 0);
             compare(spy.signalArguments[0][2], "tmp/dmsnotes-small.png");
@@ -335,6 +398,37 @@ Item {
 
         function test_markdown_for() {
             compare(Images.markdownFor("nota/a b(1).png", "x"), "![x](nota/a%20b%281%29.png)");
+        }
+
+        function test_mini_and_caption_helpers() {
+            const env = "<!-- img: ancho=50 inicio -->\n![](a.png)\n<!-- img: ancho=50 fin -->";
+            compare(Images.isMini(Images.find(env)[0]), true);
+            compare(Images.setImageMini(env, 0, false, {}, [{ size: 50, sources: ["a.png"] }]), "![](a.png)");
+            const inGal = "<!-- img: ancho=50 inicio -->\n![](a.png)\n![](b.png)\n<!-- img: ancho=50 fin -->";
+            const layouts = [{ size: 50, sources: ["a.png", "b.png"] }];
+            const afterExpand = Images.setImageMini(inGal, 0, false, {}, layouts);
+            verify(afterExpand.indexOf("![](a.png)") >= 0);
+            const left = Images.find(afterExpand, {}, {}, [{ size: 50, sources: ["b.png"] }]);
+            compare(left.filter(im => im.src === "b.png")[0].mini, true);
+            compare(left.filter(im => im.src === "a.png")[0].mini, false);
+            const row = "<!-- img: ancho=50 inicio -->\n![](a.png)\n![](b.png)\n<!-- img: ancho=50 fin -->";
+            compare(Images.setImageMini(row, 0, false, {}, layouts), "<!-- img: ancho=50 inicio -->\n![](b.png)\n<!-- img: ancho=50 fin -->\n![](a.png)");
+            compare(Images.setImageMini("![](a.png)", 0, true), "<!-- img: ancho=50 inicio -->\n![](a.png)\n<!-- img: ancho=50 fin -->");
+            const inline = "<!-- img: ancho=50 inicio -->\n![](a.png) ![](b.png)\n<!-- img: ancho=50 fin -->";
+            compare(Images.normalizeGalleries(inline).indexOf("![](a.png)\n![](b.png)") >= 0, true);
+            const saved = Images.exportMarkdown("![](a.png)\n![](b.png)", { 0: true, 1: true });
+            verify(saved.indexOf("img: ancho=50 inicio") >= 0);
+            verify(saved.indexOf("img: ancho=50 fin") >= 0);
+            const laid = Images.applyGalleryLayouts("![](a.png)\n\n![](b.png)", [{ size: 50, sources: ["a.png", "b.png"] }]);
+            verify(laid.indexOf("img: ancho=50 inicio") >= 0);
+            verify(laid.indexOf("![](a.png)\n![](b.png)") >= 0);
+            verify(laid.indexOf("img: ancho=50 fin") >= 0);
+            const spaced = "![](a.png)\n\n\n![](b.png)";
+            const spacedLayouts = [{ size: 50, sources: ["a.png", "b.png"] }];
+            compare(Images.find(spaced, {}, {}, spacedLayouts).filter(im => im.mini).length, 2);
+            compare(Images.setImageCaption("![](a.png)", 0, "Pie"), "![Pie](a.png)");
+            compare(Images.captionText("Pie"), "Pie");
+            compare(Images.captionText("imagen"), "");
         }
 
         function test_resolve() {

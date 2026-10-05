@@ -21,10 +21,20 @@ Rectangle {
     border.width: 1
     border.color: Theme.outlineMedium
 
+    onVisibleChanged: {
+        if (visible)
+            Qt.callLater(() => editor.relayoutDecorations());
+    }
+
     DankFlickable {
         id: flick
 
         property real savedY: 0
+
+        onWidthChanged: {
+            if (width > 0)
+                Qt.callLater(editor.relayoutDecorations);
+        }
 
         function ensureVisible(r) {
             if (contentY >= r.y)
@@ -134,5 +144,10 @@ Rectangle {
             const r = editor.cursorRectangle;
             return editor.mapToItem(root, r.x, r.y, r.width, r.height);
         }
+    }
+
+    ImageMenu {
+        anchors.fill: parent
+        editor: editor
     }
 }

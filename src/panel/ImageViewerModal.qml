@@ -11,22 +11,22 @@ DankModal {
 
     property string url: ""
     property string title: ""
+    property string footnote: ""
     property int position: -1
     property bool removable: false
     property bool confirmRemove: false
     readonly property string path: url.indexOf("file://") === 0 ? decodeURIComponent(url.substring(7)) : ""
     readonly property real headerHeight: 48
-    property size naturalSize: Qt.size(640, 400)
-    readonly property real maxWidth: screenWidth * 0.9
-    readonly property real maxHeight: screenHeight * 0.9 - headerHeight
-    readonly property real fitScale: Math.min(1, maxWidth / naturalSize.width, maxHeight / naturalSize.height)
+    readonly property real viewportW: screenWidth * 0.9
+    readonly property real viewportH: screenHeight * 0.9
 
     signal removeRequested(int position, string path)
 
-    function show(pos, imageUrl, label, canRemove) {
+    function show(pos, imageUrl, label, canRemove, note) {
         position = pos;
         url = imageUrl;
         title = label;
+        footnote = note || "";
         removable = canRemove;
         confirmRemove = false;
         open();
@@ -35,8 +35,8 @@ DankModal {
     layerNamespace: "dms:markdown-notes-image"
     allowStacking: true
     useOverlayLayer: true
-    modalWidth: Math.max(360, naturalSize.width * fitScale + Theme.spacingM * 2)
-    modalHeight: naturalSize.height * fitScale + headerHeight + Theme.spacingM
+    modalWidth: viewportW
+    modalHeight: viewportH
     onBackgroundClicked: close()
     onOpened: Qt.callLater(() => modalFocusScope.forceActiveFocus())
 
@@ -128,18 +128,33 @@ DankModal {
                 anchors.top: header.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.margins: Theme.spacingM
-                anchors.topMargin: 0
+                anchors.bottom: footnoteBlock.top
+                anchors.leftMargin: Theme.spacingM
+                anchors.rightMargin: Theme.spacingM
+                anchors.topMargin: Theme.spacingS
+                anchors.bottomMargin: Theme.spacingS
                 source: root.url
                 fillMode: Image.PreserveAspectFit
                 asynchronous: false
-                onStatusChanged: {
-                    if (status === Image.Ready && implicitWidth > 0 && implicitHeight > 0)
-                        root.naturalSize = Qt.size(implicitWidth, implicitHeight);
-                }
                 smooth: true
                 mipmap: true
+            }
+
+            StyledText {
+                id: footnoteBlock
+                visible: root.footnote !== ""
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: Theme.spacingM
+                width: parent.width - Theme.spacingM * 2
+                text: root.footnote
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: Theme.fontSizeLarge
+                font.italic: true
+                color: Theme.surfaceText
+                opacity: 0.85
             }
         }
     }

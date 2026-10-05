@@ -37,6 +37,7 @@ TextEdit {
     readonly property alias slash: slashController
     readonly property alias table: tableController
     readonly property alias code: codeController
+    readonly property alias imageController: imageController
     property int layoutRevision: 0
     property var _decorations: null
     property string _decorationsKey: ""
@@ -51,11 +52,16 @@ TextEdit {
     property bool _selectAllStage: false
     property int _emptyHeadingLevel: 0
     property bool _loading: false
+    property bool _pendingWidthLayout: false
+    property string _lastLoadedMd: ""
     property bool _flattening: false
     property string imageBaseDir: ""
     property real imageMaxHeight: 480
     property var images: []
     property var _imageSources: ({})
+    property var _imageMiniBySrc: ({})
+    property var _miniMdLines: ({})
+    property var _imageGalleryLayouts: []
     property var _imageSizes: ({})
     property var _imageIds: ({})
     property int _imageNextId: 1
@@ -95,11 +101,24 @@ TextEdit {
     selectedTextColor: Qt.rgba(selectionTextColor.r, selectionTextColor.g, selectionTextColor.b + (_repaintFlip ? (selectionTextColor.b > 0.5 ? -1 : 1) / 255 : 0), selectionTextColor.a)
     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
     tabStopDistance: Math.max(1, monoMetrics.advanceWidth)
-    cursorDelegate: Rectangle {
+    cursorDelegate: Item {
         z: 10
         width: 2
-        color: root.color
-        visible: root.activeFocus && root._caretOn
+        height: root.cursorRectangle.height
+
+        readonly property bool miniCaret: {
+            const im = root._miniImageAt(root.cursorPosition);
+            return im !== null && im !== undefined;
+        }
+
+        Rectangle {
+            width: 2
+            height: parent.miniCaret ? Images.MINI_SIZE : parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.miniCaret ? Math.max(0, (parent.height - height) / 2) : 0
+            color: root.color
+            visible: root.activeFocus && root._caretOn
+        }
     }
 
     property bool _caretOn: true
@@ -180,8 +199,10 @@ TextEdit {
         if (selectionStart === selectionEnd)
             _selectAllStage = false;
         caretTimer.restart();
-        if (!_loading)
+        if (!_loading) {
             Qt.callLater(codeController.clampCursor);
+            Qt.callLater(clampImageCursor);
+        }
         slashController.refresh();
         tableController.refresh();
     }
@@ -191,9 +212,22 @@ TextEdit {
         relayoutDecorations();
         if (images.length > 0)
             imageLayoutTimer.restart();
+        if (width > 0 && _pendingWidthLayout && _lastLoadedMd !== "") {
+            _pendingWidthLayout = false;
+            const md = _lastLoadedMd;
+            Qt.callLater(() => {
+                _loading = true;
+                _assign(md);
+                _loading = false;
+                refreshDecorations();
+            });
+        }
     }
     onContentHeightChanged: decorationTimer.restart()
-    onSourceModeChanged: decorationTimer.restart()
+    onSourceModeChanged: {
+        imageController.closeMenu();
+        decorationTimer.restart();
+    }
     onFontChanged: relayoutDecorations()
     on_WindowChanged: relayoutDecorations()
 
@@ -215,6 +249,11 @@ TextEdit {
 
     TableController {
         id: tableController
+        editor: root
+    }
+
+    ImageController {
+        id: imageController
         editor: root
     }
 
@@ -352,15 +391,67 @@ TextEdit {
         };
     }
 
+    function _captionReserve(alt) {
+        const text = Images.captionText(alt);
+        if (!text)
+            return 0;
+        return Math.round(font.pixelSize * 3.2) + Math.round(blockGap * 0.5) + 4;
+    }
+
+    function _miniStateForMd(md) {
+        const miniLines = {};
+        const miniMap = {};
+        for (let b = 0; b < root._imageGalleryLayouts.length; b++) {
+            const block = root._imageGalleryLayouts[b];
+            if (!block || !block.sources)
+                continue;
+            for (let s = 0; s < block.sources.length; s++)
+                miniMap[block.sources[s]] = true;
+        }
+        const mdLines = md.split("\n");
+        for (const gal of Images.galleries(mdLines)) {
+            miniLines[gal.head] = true;
+            if (gal.close >= 0)
+                miniLines[gal.close] = true;
+            for (let L = gal.start; L <= gal.end; L++)
+                miniLines[L] = true;
+        }
+        const listed = Images.find(md, miniLines, miniMap, root._imageGalleryLayouts);
+        for (let i = 0; i < listed.length; i++) {
+            const im = listed[i];
+            if (im.mini) {
+                miniLines[im.line] = true;
+                if (im.galleryHead >= 0)
+                    miniLines[im.galleryHead] = true;
+            }
+        }
+        for (let i = 0; i < listed.length; i++) {
+            if (!listed[i].mini)
+                continue;
+            let start = listed[i].line;
+            let end = listed[i].line;
+            while (i + 1 < listed.length && listed[i + 1].mini && listed[i + 1].line === end + 1) {
+                i++;
+                end = listed[i].line;
+            }
+            for (let L = start; L <= end; L++)
+                miniLines[L] = true;
+        }
+        return { miniLines: miniLines, miniMap: miniMap };
+    }
+
     function _prepareImages(md) {
-        const result = Images.prepare(md, src => _imageSize(src), imageMaxWidth, imageMaxHeight, _imageRegistry(), blockGap);
+        const state = _miniStateForMd(md);
+        const result = Images.prepare(md, src => _imageSize(src), imageMaxWidth, imageMaxHeight, _imageRegistry(), blockGap, state.miniLines, state.miniMap, _imageGalleryLayouts, alt => _captionReserve(alt));
         _imageSources = result.sources;
+        _imageMiniBySrc = state.miniMap;
+        _miniMdLines = state.miniLines;
         _imageLayoutWidth = imageMaxWidth;
         return result.text;
     }
 
     function _measureImages() {
-        const list = sourceMode || markdownText.indexOf("![") < 0 ? [] : Images.list(markdownText);
+        const list = sourceMode || markdownText.indexOf("![") < 0 ? [] : Images.list(markdownText, _miniMdLines, _imageMiniBySrc, _imageGalleryLayouts);
         if (list.length === 0) {
             if (images.length > 0)
                 images = [];
@@ -368,25 +459,84 @@ TextEdit {
         }
         const plainText = plain();
         const out = [];
+        const maxW = _imageLayoutWidth || imageMaxWidth;
+        const miniGap = 4;
+        const miniStep = Images.MINI_SIZE + miniGap;
+        const maxRight = leftPadding + maxW;
         let pos = -1;
-        for (const img of list) {
+        let miniGroup = -1;
+        let miniCol = 0;
+        let miniOriginX = 0;
+        let miniOriginY = 0;
+        const mdLines = markdownText.split("\n");
+        for (let i = 0; i < list.length; i++) {
+            const img = list[i];
             pos = plainText.indexOf("\ufffc", pos + 1);
             if (pos < 0)
                 break;
-            const natural = _imageSize(img.src);
-            const size = Images.fit(natural, _imageLayoutWidth || imageMaxWidth, imageMaxHeight) || Images.MISSING;
             const r = positionToRectangle(pos);
-            out.push({
-                pos: pos,
-                x: r.x,
-                y: r.height > size.height ? Math.max(r.y + blockGap, r.y + r.height - textMetrics.descent - size.height - blockGap) : r.y,
-                width: size.width,
-                height: size.height,
-                url: Images.resolve(img.src, imageBaseDir),
-                src: img.src,
-                alt: img.alt,
-                missing: natural === null
-            });
+            const mini = Images.isMini(img);
+            const caption = Images.captionText(img.alt);
+            const natural = _imageSize(img.src);
+            if (mini) {
+                const group = img.galleryHead >= 0 ? img.galleryHead : Images.miniRowStart(mdLines, img.line);
+                if (group !== miniGroup) {
+                    miniGroup = group;
+                    miniCol = 0;
+                    miniOriginX = r.x;
+                    miniOriginY = r.y;
+                }
+                let x = miniOriginX + miniCol * miniStep;
+                let y = miniOriginY;
+                if (x + Images.MINI_SIZE > maxRight && miniCol > 0) {
+                    miniCol = 0;
+                    miniOriginY += miniStep;
+                    x = miniOriginX;
+                    y = miniOriginY;
+                }
+                out.push({
+                    ordinal: i,
+                    pos: pos,
+                    mdLine: img.line,
+                    galleryHead: img.galleryHead,
+                    x: x,
+                    y: y,
+                    width: Images.MINI_SIZE,
+                    height: Images.MINI_SIZE,
+                    imageHeight: Images.MINI_SIZE,
+                    captionHeight: 0,
+                    url: Images.resolve(img.src, imageBaseDir),
+                    src: img.src,
+                    alt: img.alt,
+                    caption: "",
+                    mini: true,
+                    missing: natural === null
+                });
+                miniCol++;
+            } else {
+                miniGroup = -1;
+                miniCol = 0;
+                const size = Images.fit(natural, maxW, imageMaxHeight) || Images.MISSING;
+                const capH = caption ? _captionReserve(img.alt) : 0;
+                const imageY = r.y + blockGap;
+                out.push({
+                    ordinal: i,
+                    pos: pos,
+                    mdLine: img.line,
+                    x: r.x,
+                    y: imageY,
+                    width: size.width,
+                    height: size.height + capH,
+                    imageHeight: size.height,
+                    captionHeight: capH,
+                    url: Images.resolve(img.src, imageBaseDir),
+                    src: img.src,
+                    alt: img.alt,
+                    caption: caption,
+                    mini: false,
+                    missing: natural === null
+                });
+            }
         }
         if (JSON.stringify(out) !== JSON.stringify(images))
             images = out;
@@ -406,6 +556,131 @@ TextEdit {
         });
     }
 
+    function _miniImageAt(pos) {
+        for (let i = 0; i < images.length; i++) {
+            const im = images[i];
+            if (im.mini && im.pos === pos)
+                return im;
+        }
+        return null;
+    }
+
+    function _miniMarkdownLine(lines, lineIndex) {
+        if (Images.galleryForLine(lines, lineIndex))
+            return true;
+        for (let i = 0; i < images.length; i++) {
+            const im = images[i];
+            if (im.mini && im.mdLine === lineIndex)
+                return true;
+        }
+        return !!_miniMdLines[lineIndex];
+    }
+
+    function _galleryAtCursor(lines, lineIndex) {
+        let g = Images.galleryForLine(lines, lineIndex);
+        if (g)
+            return g;
+        for (let i = 0; i < images.length; i++) {
+            const im = images[i];
+            if (!im.mini)
+                continue;
+            g = Images.galleryForLine(lines, im.mdLine);
+            if (g)
+                return g;
+        }
+        return null;
+    }
+
+    function _isMiniImageLine(lines, lineIndex) {
+        if (lineIndex < 0 || lineIndex >= lines.length)
+            return false;
+        if (lines[lineIndex].indexOf("![") < 0)
+            return false;
+        if (_miniMdLines[lineIndex])
+            return true;
+        const found = Images.find(lines.join("\n"), _miniMdLines, _imageMiniBySrc, _imageGalleryLayouts);
+        for (let i = 0; i < found.length; i++) {
+            if (found[i].line === lineIndex && found[i].mini)
+                return true;
+        }
+        return false;
+    }
+
+    function _contiguousMiniBlock(lines, lineIndex) {
+        let start = lineIndex;
+        let end = lineIndex;
+        while (start > 0 && _isMiniImageLine(lines, start - 1))
+            start--;
+        while (end + 1 < lines.length && _isMiniImageLine(lines, end + 1))
+            end++;
+        return { start: start, end: end };
+    }
+
+    function _appendMiniImageLines(lines, lineIndex, tokens) {
+        const gal = _galleryAtCursor(lines, lineIndex);
+        if (gal) {
+            Images.appendToGalleryLines(lines, gal, tokens);
+            return;
+        }
+        const block = _contiguousMiniBlock(lines, lineIndex);
+        let at = block.end + 1;
+        for (let i = tokens.length - 1; i >= 0; i--)
+            lines.splice(at, 0, tokens[i]);
+    }
+
+    function _miniRowBlock(start, end) {
+        const t = plain().substring(start, end);
+        let hasMini = false;
+        for (let i = 0; i < t.length; i++) {
+            const c = t.charAt(i);
+            if (c === "\ufffc") {
+                if (!_miniImageAt(start + i))
+                    return false;
+                hasMini = true;
+            } else if (c !== " " && c !== "\u00a0" && c !== "\t")
+                return false;
+        }
+        return hasMini;
+    }
+
+    function clampImageCursor() {
+        if (sourceMode || _loading || selectionStart !== selectionEnd)
+            return;
+        if (_miniImageAt(cursorPosition))
+            cursorPosition = cursorPosition + 1;
+    }
+
+    function tryMiniRowKey(event) {
+        if (sourceMode)
+            return false;
+        const pos = cursorPosition;
+        if (event.key === Qt.Key_Left && pos > 0 && _miniImageAt(pos - 1)) {
+            cursorPosition = pos - 1;
+            event.accepted = true;
+            return true;
+        }
+        if (event.key === Qt.Key_Right && _miniImageAt(pos)) {
+            cursorPosition = pos + 1;
+            event.accepted = true;
+            return true;
+        }
+        const block = blockRange(pos);
+        if (!_miniRowBlock(block.start, block.end))
+            return false;
+        if (_miniImageAt(pos)) {
+            event.accepted = true;
+            return true;
+        }
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            event.accepted = true;
+            return true;
+        }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            return rewriteLineAt(pos, line => line.replace(Md.MARKER, "") + "\n\n" + Md.MARKER);
+        }
+        return false;
+    }
+
     function insertImages(sources) {
         if (sourceMode || sources.length === 0)
             return false;
@@ -413,12 +688,23 @@ TextEdit {
         const pos = cursorPosition;
         if (codeController.at(pos) || tableController.locate(pos))
             return false;
-        const frag = sources.map(src => Images.markdownFor(src, "")).join("\n\n");
+        const blockFrag = sources.map(src => Images.markdownFor(src, "")).join("\n\n");
+        const block = blockRange(pos);
+        const inMiniRow = _miniRowBlock(block.start, block.end) || images.some(im => im.mini && pos >= im.pos && pos <= im.pos + 1);
         return rewriteAt(pos, (lines, found, shift) => {
+            if (inMiniRow || _miniMarkdownLine(lines, found)) {
+                const rows = sources.map(src => Images.markdownFor(src, ""));
+                _appendMiniImageLines(lines, found, rows);
+                const block = _contiguousMiniBlock(lines, found);
+                for (let L = block.start; L <= block.end; L++)
+                    root._miniMdLines[L] = true;
+                root._imageGalleryLayouts = Images.appendSourcesToLastLayout(root._imageGalleryLayouts, sources, Images.MINI_SIZE);
+                return lines.join("\n");
+            }
             const idx = Md.joinParagraph(lines, found);
             const marker = lines[idx].indexOf(Md.MARKER);
             const at = shift ? Paste.blockPrefix(lines[idx].replace(Md.MARKER, "")).length : marker;
-            return Paste.splice(lines, idx, at, frag, true).join("\n");
+            return Paste.splice(lines, idx, at, blockFrag, true).join("\n");
         }, true);
     }
 
@@ -464,9 +750,13 @@ TextEdit {
         return true;
     }
 
+    function serializedMarkdown() {
+        return exportMarkdown();
+    }
+
     function _state() {
         return {
-            md: markdown(),
+            md: serializedMarkdown(),
             start: selectionStart,
             end: selectionEnd
         };
@@ -483,7 +773,7 @@ TextEdit {
         if (_restoring || _loading)
             return;
         if (!_groupOpen) {
-            if (_committed.md === markdown())
+            if (_committed.md === serializedMarkdown())
                 return;
             _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
             _redoStack = [];
@@ -506,7 +796,7 @@ TextEdit {
         if (_groupOpen) {
             _groupOpen = false;
             _committed = _state();
-        } else if (_committed.md !== markdown()) {
+        } else if (_committed.md !== serializedMarkdown()) {
             _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
             _redoStack = [];
             _committed = _state();
@@ -580,7 +870,7 @@ TextEdit {
     }
 
     function restoreHistory(state) {
-        if (!state || !state.committed || state.committed.md !== markdown())
+        if (!state || !state.committed || state.committed.md !== serializedMarkdown())
             return false;
         _undoStack = state.undo;
         _redoStack = state.redo;
@@ -631,6 +921,7 @@ TextEdit {
                 text = md;
                 return;
             }
+            _syncGalleryLayoutsFromMd(parts.body);
             const prepared = Tables.prepare(Code.prepare(_prepareImages(Md.padTrailingRule(parts.body))), {
                 border: tableBorderColor.toString(),
                 margin: blockGap
@@ -649,13 +940,19 @@ TextEdit {
         if (keepHistory)
             _closeGroup();
         _imageSizes = {};
+        _imageMiniBySrc = {};
+        _miniMdLines = {};
+        _imageGalleryLayouts = Images.galleryLayoutsFromMd(md);
+        images = [];
+        _lastLoadedMd = md;
+        _pendingWidthLayout = width <= 0;
         _loading = true;
         _assign(md);
         _loading = false;
         cursorPosition = 0;
         if (!keepHistory) {
             resetHistory();
-        } else if (_committed.md !== markdown()) {
+        } else if (_committed.md !== serializedMarkdown()) {
             _undoStack = _undoStack.concat([_committed]).slice(-historyLimit);
             _redoStack = [];
             _committed = _state();
@@ -664,6 +961,17 @@ TextEdit {
 
     function markdown() {
         return markdownText.replace(/\uE000/g, "");
+    }
+
+    function exportMarkdown() {
+        const raw = markdownText.replace(/\uE000/g, "");
+        return Images.exportMarkdown(raw, _miniMdLines, _imageMiniBySrc, _imageGalleryLayouts);
+    }
+
+    function _syncGalleryLayoutsFromMd(md) {
+        const parsed = Images.galleryLayoutsFromMd(md);
+        if (parsed.length)
+            _imageGalleryLayouts = parsed;
     }
 
     function setSourceMode(on) {
@@ -713,7 +1021,8 @@ TextEdit {
         rewriteStarted();
         _loading = true;
         _assign(md);
-        placeCursor();
+        if (placeCursor)
+            placeCursor();
         _loading = false;
         rewriteFinished();
         edited();
@@ -851,6 +1160,16 @@ TextEdit {
         if (frag === "")
             return true;
         return rewriteAt(pos, (lines, found, shift) => {
+            if (_miniMarkdownLine(lines, found) && frag.indexOf("\n") < 0 && frag.indexOf("![") >= 0) {
+                _appendMiniImageLines(lines, found, [frag]);
+                const block = _contiguousMiniBlock(lines, found);
+                for (let L = block.start; L <= block.end; L++)
+                    root._miniMdLines[L] = true;
+                const pasted = Images.list(frag);
+                if (pasted.length)
+                    root._imageGalleryLayouts = Images.appendSourcesToLastLayout(root._imageGalleryLayouts, pasted.map(im => im.src), Images.MINI_SIZE);
+                return lines.join("\n");
+            }
             const idx = Md.joinParagraph(lines, found);
             const marker = lines[idx].indexOf(Md.MARKER);
             const at = shift ? Paste.blockPrefix(lines[idx].replace(Md.MARKER, "")).length : marker;
@@ -1379,11 +1698,18 @@ TextEdit {
         }
 
         if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && !alt) {
+            if (tryMiniRowKey(event))
+                return;
             const handled = tableController.locate(cursorPosition) ? false : tryTabShortcut(event.key === Qt.Key_Backtab || shift);
             if (handled) {
                 event.accepted = true;
                 return;
             }
+        }
+
+        if ((event.key === Qt.Key_Left || event.key === Qt.Key_Right) && collapsed && !alt && !ctrl) {
+            if (tryMiniRowKey(event))
+                return;
         }
 
         if (code || codeController.containsSelection()) {
@@ -1410,6 +1736,10 @@ TextEdit {
         }
 
         if (printable && collapsed) {
+            if (_miniImageAt(cursorPosition) || _miniRowBlock(blockRange(cursorPosition).start, blockRange(cursorPosition).end)) {
+                event.accepted = true;
+                return;
+            }
             if (event.text !== "/" && _typeIntoBlankHeading(event.text)) {
                 event.accepted = true;
                 return;
@@ -1437,6 +1767,10 @@ TextEdit {
         }
 
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !shift) {
+            if (collapsed && tryMiniRowKey(event)) {
+                event.accepted = true;
+                return;
+            }
             if (collapsed && tryEnterShortcut()) {
                 event.accepted = true;
                 return;

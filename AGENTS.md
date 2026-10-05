@@ -32,7 +32,7 @@ src/
     RuleDecoration.qml          separador dibujado sobre el de Qt
     QuoteDecoration.qml         barra y fondo de las citas, detrás del texto
     InlineDecoration.qml        fondo detrás del texto: subrayado para [[enlaces]], chip para #etiquetas
-    ImageDecoration.qml         imagen real (o aviso) sobre el hueco que reserva Qt; clic = visor
+    ImageDecoration.qml         imagen real (o aviso) sobre el hueco; clic = menú de imagen
     logic/markdown.js           funciones puras: bloques, parseLine, escape, decoraciones
     logic/tables.js             funciones puras: parse/serialize/prepare/repair/ops/layout/HTML
     logic/code.js               funciones puras: lenguajes, fences, prepare/repair, tokenizador, outsideCode
@@ -86,7 +86,7 @@ flowchart LR
 ```
 
 - Hay un único `NotesPanel`. Su `parent` cambia entre el contenedor del panel lateral y el de la ventana flotante.
-- Al editar: `edited` inicia el temporizador de guardado (700 ms) y luego se llama a `store.save(editor.markdown())`.
+- Al editar: `edited` inicia el temporizador de guardado (700 ms) y luego se llama a `store.save(editor.exportMarkdown())`.
 - `NotesStore` ignora el `fileChanged` que provocan sus propias escrituras durante 2 s.
 
 ## Qt MarkdownText: reglas que no se pueden romper
@@ -142,6 +142,8 @@ flowchart LR
   - Rutas: relativas a la carpeta de la nota (`imageBaseDir`), codificadas con `Images.encodePath` (`encodeURI` + paréntesis). Al renombrar o mover la nota, `NotesStore.moved` → `retargetImages(viejo/, nuevo/)`.
   - Portapapeles: un portapapeles solo con espacios o vacío en texto emite `imagePasteRequested`; `NoteAssets` lee `dms clipboard history --json`, y si la entrada más reciente es imagen la guarda con `dms clipboard get ID | base64 -d`. Rutas de imagen copiadas emiten `imageFilesPasted`. No hay `wl-paste`.
   - El visor (`ImageViewerModal`) usa `useOverlayLayer` para quedar sobre el panel lateral, y mide la imagen con el `Image` de su contenido: un `Image` fuera de una ventana no carga.
+  - **Galería mini (50×50):** envoltorio en el `.md` (como el layout de tablas), **una imagen por línea** entre apertura y cierre:
+    `<!-- img: ancho=50 inicio -->` … `![](ruta)` … `<!-- img: ancho=50 fin -->`. Fuera del envoltorio = ancho completo. Qt borra los comentarios en pantalla; `_imageGalleryLayouts` (rutas en mini, como `tableLayouts`) + `_miniMdLines` y `exportMarkdown()` reescriben el envoltorio al guardar. `markdown()` para undo no muta el texto. Overlay 50×50 en cuadrícula (`_measureImages`). **Ancho de columna** (`setImageMini(false)`) saca la imagen del bloque a una línea **debajo del cierre**. Legado `<!-- imagenes: tamano=50 -->` / `imagen: mini` se convierte al envoltorio al guardar. **Clic** → `ImageMenu`; `setImageMini` / `setImageCaption`.
 - **Deshacer propio:** el undo de Qt se vacía en cada asignación de `text` y guarda los marcadores, así que Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z los maneja `MarkdownEditor` (también en `onShortcutOverride`).
   - Pila de estados `{md, start, end}` (`_undoStack`, `_redoStack`, `_committed`). `edited` → `_noteChange` abre un grupo; se cierra con 1 s sin cambios, al cambiar de tipo de tecla (escribir, espacio, Retroceso, Supr), si el cursor no está donde lo dejó la última tecla (`_groupCaret`), con Enter/Tab/Ctrl+V/Ctrl+X y antes y después de cada `rewriteAt`/`replaceMarkdown`. Así cada reescritura es un paso propio.
   - El grupo se corta antes del espacio, no después: Qt quita los espacios finales de un párrafo al reasignar el Markdown, y un estado que termina en espacio lo perdería.

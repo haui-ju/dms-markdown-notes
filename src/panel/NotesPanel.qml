@@ -22,8 +22,22 @@ Item {
     property string historyPath: ""
     property string tabLayout: String(root.pluginData.tabLayout || "horizontal")
     readonly property bool verticalTabs: tabLayout === "vertical"
+
+    onVerticalTabsChanged: resetTabsUi()
+
+    Connections {
+        target: root
+        function onPluginDataChanged() {
+            const next = String(root.pluginData.tabLayout || "horizontal");
+            if (next === root.tabLayout)
+                return;
+            root.resetTabsUi();
+            root.tabLayout = next;
+        }
+    }
     readonly property int verticalNavWidth: 188
     readonly property int verticalNavGap: Theme.spacingXS
+    readonly property int horizontalTabBand: 36
     readonly property int slideoutExtraWidth: verticalTabs && !inPopout ? verticalNavWidth + verticalNavGap : 0
     readonly property bool dirty: saveTimer.running
     readonly property alias store: store
@@ -42,6 +56,15 @@ Item {
         showPathInfo = false;
         showSearch = false;
         confirmDelete = false;
+    }
+
+    function resetTabsUi() {
+        tabsHorizontal.cancelTabDrag();
+        tabsVertical.cancelTabDrag();
+        tabsHorizontal.overflowOpen = false;
+        tabsVertical.overflowOpen = false;
+        tabsHorizontal.editingIndex = -1;
+        tabsVertical.editingIndex = -1;
     }
 
     function openSearch(text) {
@@ -98,7 +121,7 @@ Item {
         if (!saveTimer.running)
             return;
         saveTimer.stop();
-        store.save(editor.markdown());
+        store.save(editor.exportMarkdown());
     }
 
     function saveNow() {
@@ -107,7 +130,7 @@ Item {
             dialogs.saveAs();
             return;
         }
-        store.save(editor.markdown());
+        store.save(editor.exportMarkdown());
     }
 
     function newNote() {
@@ -153,8 +176,12 @@ Item {
 
     function onShown() {
         store.ensureTab();
-        editor.relayoutDecorations();
-        focusEditor();
+        Qt.callLater(() => {
+            editor.relayoutDecorations();
+            if (editor.width > 0 && editor.imageMaxWidth > 0)
+                editor._relayoutImages();
+            focusEditor();
+        });
     }
 
     function moveHistory(from, to) {
@@ -215,10 +242,7 @@ Item {
             Quickshell.execDetached(["xdg-open", store.dir]);
             break;
         case "toggleLayout":
-            tabsHorizontal.cancelTabDrag();
-            tabsVertical.cancelTabDrag();
-            tabsHorizontal.overflowOpen = false;
-            tabsVertical.overflowOpen = false;
+            resetTabsUi();
             tabLayout = verticalTabs ? "horizontal" : "vertical";
             break;
         case "delete":
@@ -262,7 +286,7 @@ Item {
             try {
                 name = decodeURIComponent(name);
             } catch (e) {}
-            imageViewer.show(pos, url, alt || name, true);
+            imageViewer.show(pos, url, name, true, Images.captionText(alt));
         }
     }
 
@@ -305,6 +329,7 @@ Item {
                 root.histories[root.historyPath] = root.editor.historyState();
             root.editor.load(content);
             root.editor.restoreHistory(root.histories[store.currentPath]);
+            Qt.callLater(() => root.editor.relayoutDecorations());
             root.historyPath = store.currentPath;
             for (const path in root.histories) {
                 if (store.tabs.indexOf(path) < 0)
@@ -326,7 +351,7 @@ Item {
     Timer {
         id: saveTimer
         interval: 700
-        onTriggered: store.save(root.editor.markdown())
+        onTriggered: store.save(root.editor.exportMarkdown())
     }
 
     Shortcut {
@@ -373,11 +398,37 @@ Item {
                 root.editor.slash.close();
             else if (root.showSearch)
                 root.closeSearch();
+            else if (root.editor.imageController.menuTarget)
+                root.editor.imageController.closeMenu();
             else if (root.showMenu || root.showPathInfo)
                 root.closePopups();
             else
                 root.hideRequested();
         }
+    }
+
+    MouseArea {
+        id: tabDragCapture
+        anchors.fill: parent
+        z: 600
+        enabled: tabsVertical.dragActive || tabsHorizontal.dragActive
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton
+        preventStealing: true
+        propagateComposedEvents: false
+        onPositionChanged: mouse => {
+            if (tabsVertical.dragActive)
+                tabsVertical.hostDragMove(mouse.x, mouse.y);
+            else if (tabsHorizontal.dragActive)
+                tabsHorizontal.hostDragMove(mouse.x, mouse.y);
+        }
+        onReleased: mouse => {
+            if (tabsVertical.dragActive)
+                tabsVertical.hostDragEnd(mouse.x, mouse.y);
+            else if (tabsHorizontal.dragActive)
+                tabsHorizontal.hostDragEnd(mouse.x, mouse.y);
+        }
+        onCanceled: root.resetTabsUi()
     }
 
     Item {
@@ -416,6 +467,7 @@ Item {
             navWidth: root.verticalNavWidth
             vertical: false
             dragHost: root
+            overflowHost: body
             store: store
             dirty: root.dirty
             onSwitchRequested: index => root.switchTab(index)
@@ -429,15 +481,19 @@ Item {
     EditorView {
         id: editorView
         z: 1
-        anchors.top: root.verticalTabs ? body.top : tabsHorizontal.bottom
+        anchors.top: body.top
         anchors.bottom: footer.top
         anchors.left: body.left
         anchors.leftMargin: root.verticalTabs ? root.verticalNavWidth + root.verticalNavGap : 0
         anchors.right: body.right
-        anchors.topMargin: Theme.spacingS
+        anchors.topMargin: Theme.spacingS + (root.verticalTabs ? 0 : root.horizontalTabBand)
         anchors.bottomMargin: Theme.spacingS
         fontFamily: String(root.pluginData.noteFont ?? "Noto Sans").trim()
         onEdited: saveTimer.restart()
+        onWidthChanged: {
+            if (width > 0)
+                Qt.callLater(editor.relayoutDecorations);
+        }
     }
 
     NoteFooter {
@@ -491,7 +547,7 @@ Item {
     SearchPopup {
         id: searchPopup
         visible: root.showSearch
-        anchors.top: verticalTabs ? editorView.top : tabsHorizontal.bottom
+        anchors.top: editorView.top
         anchors.left: editorView.left
         anchors.right: editorView.right
         anchors.topMargin: Theme.spacingS
@@ -513,7 +569,7 @@ Item {
             const target = /\.md$/i.test(path) ? path : path + ".md";
             if (store.currentPath)
                 root.retargetAssets(store.currentPath, target);
-            store.saveAs(target, root.editor.markdown());
+            store.saveAs(target, root.editor.exportMarkdown());
             root.focusEditor();
         }
         onImagePicked: path => assets.importFiles(store.currentPath, [path])

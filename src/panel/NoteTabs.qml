@@ -13,6 +13,7 @@ Item {
     property bool dirty: false
     property int editingIndex: -1
     property Item dragHost: null
+    property Item overflowHost: null
     property int dragSourceIndex: -1
     property int dragTargetIndex: -1
     property bool dragActive: false
@@ -50,6 +51,14 @@ Item {
             overflowOpen = false;
     }
 
+    onVisibleChanged: {
+        if (visible)
+            return;
+        cancelTabDrag();
+        overflowOpen = false;
+        editingIndex = -1;
+    }
+
     onDragActiveChanged: {
         if (dragActive && !vertical)
             overflowOpen = true;
@@ -61,6 +70,24 @@ Item {
         dragTargetIndex = -1;
         pressIndex = -1;
         suppressTabClick = false;
+    }
+
+    function hostDragMove(hostX, hostY) {
+        if (!dragHost) {
+            handleDragMove(hostX, hostY);
+            return;
+        }
+        const p = mapFromItem(dragHost, hostX, hostY);
+        handleDragMove(p.x, p.y);
+    }
+
+    function hostDragEnd(hostX, hostY) {
+        if (!dragHost) {
+            endTabDrag(hostX, hostY);
+            return;
+        }
+        const p = mapFromItem(dragHost, hostX, hostY);
+        endTabDrag(p.x, p.y);
     }
 
     function dropIndexAt(rootX, rootY) {
@@ -330,27 +357,6 @@ Item {
         }
     }
 
-    MouseArea {
-        id: dragLayer
-        parent: root.dragHost ? root.dragHost : root
-        anchors.fill: parent
-        enabled: root.dragActive
-        z: 500
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton
-        preventStealing: true
-        propagateComposedEvents: false
-        onPositionChanged: mouse => {
-            const p = dragLayer.mapToItem(root, mouse.x, mouse.y);
-            root.handleDragMove(p.x, p.y);
-        }
-        onReleased: mouse => {
-            const p = dragLayer.mapToItem(root, mouse.x, mouse.y);
-            root.endTabDrag(p.x, p.y);
-        }
-        onCanceled: root.endTabDrag()
-    }
-
     ScrollView {
         id: tabScroll
         x: 0
@@ -422,21 +428,31 @@ Item {
     }
 
     MouseArea {
-        visible: root.overflowOpen && !root.vertical && !root.dragActive
+        parent: root.overflowHost ? root.overflowHost : root
+        visible: root.visible && root.overflowOpen && !root.vertical && !root.dragActive
         anchors.fill: parent
-        z: 25
+        z: 35
         onClicked: root.overflowOpen = false
     }
 
     PopupSurface {
         id: overflowPopup
-        visible: root.overflowOpen && !root.vertical
-        x: Math.max(Theme.spacingS, parent.width - width - Theme.spacingS)
-        y: moreButton.y + moreButton.height + Theme.spacingXS
-        width: Math.min(280, parent.width - Theme.spacingS * 2)
+        parent: root.overflowHost ? root.overflowHost : root
+        visible: root.visible && root.overflowOpen && !root.vertical
+        width: Math.min(280, root.width - Theme.spacingS * 2)
         height: Math.min(320, overflowColumn.implicitHeight + Theme.spacingS * 2)
         color: Theme.surfaceContainer
-        z: dragActive ? 520 : 30
+        z: 40
+        x: {
+            const ref = root.overflowHost ? root.overflowHost : root;
+            const right = moreButton.mapToItem(ref, moreButton.width, 0).x;
+            const hostW = ref.width;
+            return Math.max(Theme.spacingS, Math.min(right - width, hostW - width - Theme.spacingS));
+        }
+        y: {
+            const ref = root.overflowHost ? root.overflowHost : root;
+            return moreButton.mapToItem(ref, 0, moreButton.height).y + Theme.spacingXS;
+        }
 
         Column {
             id: overflowColumn
