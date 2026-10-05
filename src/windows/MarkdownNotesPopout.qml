@@ -66,6 +66,7 @@ DankFloatingWindow {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: Theme.spacingM
+            readonly property int noteBodyWidth: win.width - Theme.spacingM * 2
         }
     }
 

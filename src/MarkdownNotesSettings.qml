@@ -18,8 +18,8 @@ PluginSettings {
     StringSetting {
         settingKey: "noteFont"
         label: "Fuente de las notas"
-        description: "Noto Sans separa más las líneas que otras fuentes. Déjalo vacío para usar la fuente del sistema"
-        placeholder: "Noto Sans"
+        description: "Usa una fuente instalada; Fira Code o JetBrains Mono muestran ligaduras como -> y =>"
+        placeholder: "Noto Sans, Fira Code o JetBrains Mono"
         defaultValue: "Noto Sans"
     }
 
@@ -46,5 +46,21 @@ PluginSettings {
             }
         ]
         defaultValue: "left"
+    }
+
+    SelectionSetting {
+        settingKey: "tabLayout"
+        label: "Disposición de pestañas"
+        options: [
+            {
+                label: "Horizontal",
+                value: "horizontal"
+            },
+            {
+                label: "Vertical",
+                value: "vertical"
+            }
+        ]
+        defaultValue: "horizontal"
     }
 }

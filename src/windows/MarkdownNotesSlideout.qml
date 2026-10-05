@@ -11,8 +11,7 @@ PanelWindow {
 
     property var pluginData: ({})
     readonly property int panelWidth: Math.max(280, Number(pluginData.panelWidth) || 500)
-    readonly property int expandedWidthValue: 960
-    property bool expanded: false
+    property int verticalTabsExtra: 0
     readonly property bool fromLeft: (pluginData.side || "left") === "left"
     readonly property real edgeGap: {
         const g = SettingsData.notepadEffectiveEdgeGap;
@@ -50,7 +49,7 @@ PanelWindow {
     anchors.left: fromLeft
     anchors.right: !fromLeft
 
-    implicitWidth: Math.max(panelWidth, expandedWidthValue) + edgeGap * 2
+    implicitWidth: panelWidth + verticalTabsExtra + edgeGap * 2
 
     WlrLayershell.namespace: "dms:plugin:markdown-notes"
     WlrLayershell.layer: WlrLayershell.Top
@@ -69,7 +68,11 @@ PanelWindow {
         Rectangle {
             id: surface
 
-            readonly property real targetWidth: root.expanded ? root.expandedWidthValue : root.panelWidth
+            readonly property real targetWidth: {
+                const want = root.panelWidth + root.verticalTabsExtra;
+                const sw = root.screen ? root.screen.width - root.edgeGap * 4 : want;
+                return Math.min(want, Math.max(root.panelWidth + root.verticalTabsExtra, sw));
+            }
             property real offset: root.isVisible ? 0 : (root.fromLeft ? -width - root.edgeGap : width + root.edgeGap)
 
             width: targetWidth
@@ -106,18 +109,6 @@ PanelWindow {
                 title: "Notas"
 
                 IconButton {
-                    id: expandButton
-                    iconName: root.expanded ? "unfold_less" : "unfold_more"
-                    onClicked: root.expanded = !root.expanded
-
-                    transform: Rotation {
-                        angle: 90
-                        origin.x: expandButton.width / 2
-                        origin.y: expandButton.height / 2
-                    }
-                }
-
-                IconButton {
                     iconName: "close"
                     onClicked: root.hide()
                 }
@@ -133,6 +124,7 @@ PanelWindow {
                 anchors.leftMargin: Theme.spacingL
                 anchors.rightMargin: Theme.spacingL
                 anchors.bottomMargin: Theme.spacingL
+                readonly property int noteBodyWidth: root.panelWidth - Theme.spacingL * 2
             }
         }
     }

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../panel/logic/tab_order.js" as TabOrder
 
 Item {
     id: root
@@ -24,6 +25,7 @@ Item {
     property bool _externalReloadPending: false
     property bool sessionLoaded: false
     property var _pendingMoves: []
+    property var pinned: []
 
     signal noteLoaded(string content)
     signal externalChange(string content)
@@ -82,7 +84,37 @@ Item {
         let n = 1;
         while (tabs.indexOf(dir + "/" + name) >= 0)
             name = "nota-" + stamp + "-" + (n++) + ".md";
-        openPath(dir + "/" + name);
+        const path = dir + "/" + name;
+        openPath(path);
+        fileView.path = path;
+        fileView.setText("");
+        lastSavedContent = "";
+        lastWriteAt = Date.now();
+    }
+
+    function moveTab(from, to) {
+        if (from === to || from < 0 || from >= tabs.length || to < 0 || to >= tabs.length)
+            return;
+        const r = TabOrder.moveTab(tabs, currentIndex, from, to);
+        tabs = r.tabs;
+        currentIndex = r.currentIndex;
+        saveSession();
+    }
+
+    function togglePinned(path) {
+        const next = pinned.slice();
+        const i = next.indexOf(path);
+        if (i >= 0) {
+            next.splice(i, 1);
+        } else {
+            next.push(path);
+            const from = tabs.indexOf(path);
+            const pinnedBefore = next.filter(p => tabs.indexOf(p) >= 0).length - 1;
+            if (from >= 0 && from !== pinnedBefore)
+                moveTab(from, pinnedBefore);
+        }
+        pinned = next;
+        saveSession();
     }
 
     function ensureTab() {
@@ -224,7 +256,8 @@ Item {
             return;
         sessionFile.setText(JSON.stringify({
             tabs: tabs,
-            current: currentIndex
+            current: currentIndex,
+            pinned: pinned
         }, null, 2));
     }
 
@@ -236,6 +269,7 @@ Item {
             data = {};
         }
         tabs = Array.isArray(data.tabs) ? data.tabs.filter(p => typeof p === "string" && p) : [];
+        pinned = Array.isArray(data.pinned) ? data.pinned.filter(p => tabs.indexOf(p) >= 0) : [];
         sessionLoaded = true;
         if (tabs.length > 0)
             switchTo(Math.max(0, Math.min(data.current || 0, tabs.length - 1)));

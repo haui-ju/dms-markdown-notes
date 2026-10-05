@@ -20,7 +20,11 @@ Item {
     property var pendingMatch: null
     property var histories: ({})
     property string historyPath: ""
-
+    property string tabLayout: String(root.pluginData.tabLayout || "horizontal")
+    readonly property bool verticalTabs: tabLayout === "vertical"
+    readonly property int verticalNavWidth: 188
+    readonly property int verticalNavGap: Theme.spacingXS
+    readonly property int slideoutExtraWidth: verticalTabs && !inPopout ? verticalNavWidth + verticalNavGap : 0
     readonly property bool dirty: saveTimer.running
     readonly property alias store: store
     readonly property var editor: editorView.editor
@@ -204,10 +208,18 @@ Item {
             focusEditor();
             break;
         case "rename":
-            tabs.editingIndex = store.currentIndex;
+            tabsVertical.editingIndex = store.currentIndex;
+            tabsHorizontal.editingIndex = store.currentIndex;
             break;
         case "folder":
             Quickshell.execDetached(["xdg-open", store.dir]);
+            break;
+        case "toggleLayout":
+            tabsHorizontal.cancelTabDrag();
+            tabsVertical.cancelTabDrag();
+            tabsHorizontal.overflowOpen = false;
+            tabsVertical.overflowOpen = false;
+            tabLayout = verticalTabs ? "horizontal" : "vertical";
             break;
         case "delete":
             saveTimer.stop();
@@ -368,26 +380,60 @@ Item {
         }
     }
 
-    NoteTabs {
-        id: tabs
+    Item {
+        id: body
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        store: store
-        dirty: root.dirty
-        onSwitchRequested: index => root.switchTab(index)
-        onCloseRequested: index => root.closeTab(index)
-        onRenameRequested: (index, title) => store.renameAt(index, title)
-        onNewRequested: root.newNote()
-        onEditingFinished: root.focusEditor()
+        anchors.bottom: footer.top
+
+        NoteTabs {
+            id: tabsVertical
+            visible: root.verticalTabs
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            width: root.verticalNavWidth
+            navWidth: root.verticalNavWidth
+            vertical: true
+            dragHost: root
+            store: store
+            dirty: root.dirty
+            onSwitchRequested: index => root.switchTab(index)
+            onCloseRequested: index => root.closeTab(index)
+            onRenameRequested: (index, title) => store.renameAt(index, title)
+            onNewRequested: root.newNote()
+            onEditingFinished: root.focusEditor()
+        }
+
+        NoteTabs {
+            id: tabsHorizontal
+            visible: !root.verticalTabs
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 36
+            navWidth: root.verticalNavWidth
+            vertical: false
+            dragHost: root
+            store: store
+            dirty: root.dirty
+            onSwitchRequested: index => root.switchTab(index)
+            onCloseRequested: index => root.closeTab(index)
+            onRenameRequested: (index, title) => store.renameAt(index, title)
+            onNewRequested: root.newNote()
+            onEditingFinished: root.focusEditor()
+        }
     }
 
     EditorView {
         id: editorView
-        anchors.top: tabs.bottom
+        z: 1
+        anchors.top: root.verticalTabs ? body.top : tabsHorizontal.bottom
         anchors.bottom: footer.top
-        anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.left: body.left
+        anchors.leftMargin: root.verticalTabs ? root.verticalNavWidth + root.verticalNavGap : 0
+        anchors.right: body.right
         anchors.topMargin: Theme.spacingS
         anchors.bottomMargin: Theme.spacingS
         fontFamily: String(root.pluginData.noteFont ?? "Noto Sans").trim()
@@ -436,6 +482,7 @@ Item {
         anchors.bottom: footer.top
         anchors.bottomMargin: Theme.spacingS
         sourceMode: root.editor.sourceMode
+        verticalTabs: root.verticalTabs
         confirmDelete: root.confirmDelete
         escapedCode: root.showMenu ? root.editor.escapedCodeCount() : 0
         onTriggered: action => root.runMenuAction(action)
@@ -444,9 +491,9 @@ Item {
     SearchPopup {
         id: searchPopup
         visible: root.showSearch
-        anchors.top: tabs.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.top: verticalTabs ? editorView.top : tabsHorizontal.bottom
+        anchors.left: editorView.left
+        anchors.right: editorView.right
         anchors.topMargin: Theme.spacingS
         dir: store.dir
         onPicked: (path, line, query) => root.openMatch(path, line, query)

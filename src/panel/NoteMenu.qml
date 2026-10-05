@@ -7,6 +7,7 @@ PopupSurface {
     id: root
 
     property bool sourceMode: false
+    property bool verticalTabs: false
     property bool confirmDelete: false
     property int escapedCode: 0
 
@@ -49,6 +50,11 @@ PopupSurface {
                     icon: "folder",
                     label: "Abrir carpeta de notas",
                     action: "folder"
+                },
+                {
+                    icon: "view_agenda",
+                    label: root.verticalTabs ? "Pestañas horizontales" : "Pestañas verticales",
+                    action: "toggleLayout"
                 },
                 {
                     icon: "delete",

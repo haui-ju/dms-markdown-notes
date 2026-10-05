@@ -52,6 +52,12 @@ PluginComponent {
         onAboutToHide: panel.flushSave()
     }
 
+    Binding {
+        target: slideout
+        property: "verticalTabsExtra"
+        value: panel.slideoutExtraWidth
+    }
+
     MarkdownNotesPopout {
         id: popout
         onVisibleChanged: {

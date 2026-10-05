@@ -48,6 +48,7 @@ TextEdit {
     property string _frontMatter: ""
     property int _plainAfterFormatPos: -1
     property int _emptyHeadingPos: -1
+    property bool _selectAllStage: false
     property int _emptyHeadingLevel: 0
     property bool _loading: false
     property bool _flattening: false
@@ -176,6 +177,8 @@ TextEdit {
     }
     onCursorPositionChanged: {
         _caretOn = true;
+        if (selectionStart === selectionEnd)
+            _selectAllStage = false;
         caretTimer.restart();
         if (!_loading)
             Qt.callLater(codeController.clampCursor);
@@ -903,6 +906,9 @@ TextEdit {
             cursorPosition = block.end;
         if (cursorPosition !== block.end)
             return false;
+        const parsed = Md.parseLine(block.text);
+        if (parsed.list && parsed.rest.replace(Md.MARKER, "").replace(/\u00a0/g, "").trim() === "")
+            return rewriteLineAt(cursorPosition, (line, p) => "\n" + Md.MARKER);
         if (/^(---|\*\*\*|___)$/.test(block.text))
             return rewriteLineAt(cursorPosition, (line, p) => p.list ? null : "---\n\n" + Md.MARKER);
         if (block.text === "```")
@@ -1090,11 +1096,38 @@ TextEdit {
         const inner = getText(s, e);
         if (/[\u2029\uFDD0\uFDD1]/.test(inner))
             return false;
+        const escapedInner = Md.escape(inner);
+        const removed = rewriteAt(e, (lines, found) => {
+            const marker = lines[found].indexOf(Md.MARKER);
+            const before = lines[found].substring(0, marker);
+            const suffix = wrap + escapedInner + wrap;
+            if (!before.endsWith(suffix))
+                return null;
+            lines[found] = before.substring(0, before.length - suffix.length) + Md.MARKER + lines[found].substring(marker + 1);
+            return lines.join("\n");
+        }, true);
+        if (removed) {
+            select(s, e - wrap.length * 2);
+            return true;
+        }
         deselect();
         if (!_wrapBefore(e, inner, inner, wrap))
             return false;
         select(cursorPosition - inner.length, cursorPosition);
         return true;
+    }
+
+    function tryTabShortcut(shift) {
+        const block = currentBlock();
+        const p = Md.parseLine(block.text);
+        if (!p.list || selectionStart !== selectionEnd)
+            return false;
+        const content = p.rest.replace(Md.MARKER, "").replace(/\u00a0/g, "").trim();
+        if (content === "")
+            return rewriteLineAt(cursorPosition, (line, parsed) => parsed.rest.replace(Md.MARKER, Md.MARKER));
+        if (shift)
+            return rewriteLineAt(cursorPosition, (line, parsed) => parsed.indent.length >= 4 ? line.substring(4) : line.replace(/^\s+/, ""));
+        return rewriteLineAt(cursorPosition, (line, parsed) => "    " + line);
     }
 
     function _removeStrayMarker() {
@@ -1243,7 +1276,8 @@ TextEdit {
     }
 
     Keys.onShortcutOverride: event => {
-        if ((slashController.active && event.key === Qt.Key_Escape) || _isUndoKey(event))
+        if ((slashController.active && event.key === Qt.Key_Escape) || _isUndoKey(event)
+                || ((event.modifiers & Qt.ControlModifier) && [Qt.Key_A, Qt.Key_B, Qt.Key_D, Qt.Key_I, Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_0, Qt.Key_L, Qt.Key_O].indexOf(event.key) >= 0))
             event.accepted = true;
     }
 
@@ -1290,6 +1324,18 @@ TextEdit {
         if (sourceMode)
             return;
 
+        if (ctrl && !alt && event.key === Qt.Key_A) {
+            if (_selectAllStage)
+                selectAll();
+            else {
+                const block = blockRange(cursorPosition);
+                select(block.start, block.end);
+                _selectAllStage = true;
+            }
+            event.accepted = true;
+            return;
+        }
+
         if (slashController.active && slashController.handleKey(event)) {
             event.accepted = true;
             return;
@@ -1330,6 +1376,14 @@ TextEdit {
             else
                 event.accepted = _handleCtrl(event.key, shift);
             return;
+        }
+
+        if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && !alt) {
+            const handled = tableController.locate(cursorPosition) ? false : tryTabShortcut(event.key === Qt.Key_Backtab || shift);
+            if (handled) {
+                event.accepted = true;
+                return;
+            }
         }
 
         if (code || codeController.containsSelection()) {
